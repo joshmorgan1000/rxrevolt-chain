@@ -49,10 +49,8 @@ file(GLOB_RECURSE RXREVOLTCHAIN_SOURCES
 # ------------------------------------------------------------------------------
 # Create main executable
 # ------------------------------------------------------------------------------
-# main.cpp is expected to be in src/ (or at top level if desired).
 set(MAIN_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
 if(NOT EXISTS "${MAIN_SOURCE}")
-  # Fall back if main.cpp is located at top-level or user placed it elsewhere
   set(MAIN_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
 endif()
 
