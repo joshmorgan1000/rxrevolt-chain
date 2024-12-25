@@ -1,6 +1,6 @@
 # RxRevoltChain — ARCHITECTURE
 
-**Version:** 0.2 (Updated)
+**Version:** 0.3
 
 ## 1. Overview
 
@@ -20,9 +20,9 @@
 
 ## 2. System Components
 
-```bash
+```
 rxrevoltchain/
-├─ CMakeLists.txt                // Build instructions (optional placeholder)
+├─ CMakeLists.txt                // Build instructions
 ├─ README.md                     // Project overview and build/run instructions
 ├─ docs/
 │   ├─ ARCHITECTURE.md          // More detailed architecture explanations
@@ -71,8 +71,9 @@ rxrevoltchain/
 │   │   ├─ request.hpp          // Parses JSON requests into objects to interact with core or other services
 │   │   ├─ response.hpp         // Creates a JSON response to the client from requests
 │   │   └─ service_manager.hpp  // Coordinates logic among request/response, handles RPC or REST endpoints
-│   └─ main.cpp                 // The main entry point to run the node service (separate .cpp)
+│   └─ main.cpp                 // The main entry point to run the node service
 ├─ test/
+│   ├─ CMakeLists.txt
 │   ├─ unit/
 │   │   ├─ test_block.hpp
 │   │   ├─ test_pop_consensus.hpp
@@ -238,8 +239,8 @@ A **single “Full Node” model** is employed:
 ## Appendix
 
 - **Related Files**:
-  - ```docs/SPECIFICATIONS.md```: In-depth protocol details (block format, reward formula, etc.).  
-  - ```docs/DESIGN_DECISIONS.md```: Rationale behind major design trade-offs.  
+  - [docs/SPECIFICATIONS.md](docs/SPECIFICATIONS.md): In-depth protocol details (block format, reward formula, etc.).  
+  - [docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md): Rationale behind major design trade-offs.  
 
 - **Conventions**:
   - Where possible, major changes are introduced via **version-bit soft-fork** (miner signaling).
