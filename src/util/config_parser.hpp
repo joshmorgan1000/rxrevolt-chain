@@ -71,7 +71,9 @@ public:
 
         std::ifstream inFile(filepath);
         if (!inFile.is_open()) {
-            throw std::runtime_error("ConfigParser: cannot open file: " + filepath);
+            // Log that the file is missing, but just go with defaults
+            rxrevoltchain::util::logger::warn("ConfigParser: File not found: " + filepath);
+            return;
         }
 
         rxrevoltchain::util::logger::info("ConfigParser: Loading config from " + filepath);
