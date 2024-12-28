@@ -6,7 +6,7 @@
 #include <memory>
 #include <stdexcept>
 #include <optional>
-#include "../util/logger.hpp"
+#include "logger.hpp"
 #include "block.hpp"
 
 /**

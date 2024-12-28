@@ -9,9 +9,8 @@
 #include <utility>
 #include <chrono>
 #include <iomanip>
-
-#include "../util/hashing.hpp"
-#include "../util/logger.hpp"
+#include "hashing.hpp"
+#include "logger.hpp"
 #include "transaction.hpp"
 
 /**
@@ -157,7 +156,7 @@ public:
     /**
      * @brief Default constructor (creates an empty block).
      */
-    Block() = default;
+    Block();
 
     /**
      * @brief Construct a new Block with a given header, transaction set, and popProofs.
@@ -242,5 +241,15 @@ public:
 
 } // namespace core
 } // namespace rxrevoltchain
+
+inline rxrevoltchain::core::Block::Block()
+{
+    // Initialize the header with default values
+    header.prevBlockHash = "";
+    header.blockHeight = 0;
+    header.timestamp = static_cast<uint64_t>(std::time(nullptr));
+    header.version = 0;
+    header.blockChallenge = "dummyChallenge";
+}
 
 #endif // RXREVOLTCHAIN_CORE_BLOCK_HPP

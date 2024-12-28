@@ -3,8 +3,8 @@
 
 #include <stdexcept>
 #include <cstdint>
-#include "../../config/chainparams.hpp"
-#include "../util/logger.hpp"
+#include "chainparams.hpp"
+#include "logger.hpp"
 
 /**
  * @file reward_schedule.hpp

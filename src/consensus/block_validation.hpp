@@ -4,10 +4,10 @@
 #include <string>
 #include <stdexcept>
 #include <ctime>
-#include "../core/block.hpp"
-#include "../miner/proof_generator.hpp"
-#include "../util/logger.hpp"
-#include "../util/hashing.hpp"
+#include "block.hpp"
+#include "proof_generator.hpp"
+#include "logger.hpp"
+#include "hashing.hpp"
 
 /**
  * @file block_validation.hpp

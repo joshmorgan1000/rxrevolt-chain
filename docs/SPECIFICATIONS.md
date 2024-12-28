@@ -197,5 +197,5 @@ Miners must respond accordingly or risk producing an invalid block.
 
 Further technical details (such as exact PoP cryptographic flows, node identity management, or daily WAL snapshot rules) can be found in:
 
-- [`docs/ARCHITECTURE.md`](ARCHITECTURE.md): System-level design and rationale  
-- [`docs/DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md): Key trade-offs and justifications  
+- [docs/ARCHITECTURE.md](ARCHITECTURE.md): System-level design and rationale  
+- [docs/DESIGN_DECISIONS.md](DESIGN_DECISIONS.md): Key trade-offs and justifications  

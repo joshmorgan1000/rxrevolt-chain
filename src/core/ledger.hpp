@@ -8,8 +8,8 @@
 #include <memory>
 #include <sstream>
 #include "transaction.hpp"
-#include "../consensus/pop_consensus.hpp"
-#include "../util/logger.hpp"
+#include "pop_consensus.hpp"
+#include "logger.hpp"
 
 /**
  * @file ledger.hpp

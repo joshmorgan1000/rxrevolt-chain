@@ -10,15 +10,15 @@
 #include <ctime>
 #include <random>
 #include <sstream>
-#include "../core/block.hpp"
-#include "../core/chainstate.hpp" // We assume chainstate.hpp provides chainState with addBlock() or similar
-#include "../consensus/block_validation.hpp"
-#include "../consensus/cid_randomness.hpp"
-#include "../util/logger.hpp"
-#include "../util/thread_pool.hpp"
-#include "../util/hashing.hpp"
-#include "../../config/chainparams.hpp"
-#include "../../config/node_config.hpp"
+#include "block.hpp"
+#include "chainstate.hpp"
+#include "block_validation.hpp"
+#include "cid_randomness.hpp"
+#include "logger.hpp"
+#include "thread_pool.hpp"
+#include "hashing.hpp"
+#include "chainparams.hpp"
+#include "node_config.hpp"
 #include "proof_generator.hpp"
 #include "reward_schedule.hpp"
 

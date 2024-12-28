@@ -4,11 +4,12 @@
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
-#include "../../src/miner/pop_miner.hpp"
-#include "../../src/miner/reward_schedule.hpp"
-#include "../../src/core/chainstate.hpp"
-#include "../../src/config/chainparams.hpp"
-#include "../../src/config/node_config.hpp"
+#include "pop_miner.hpp"
+#include "reward_schedule.hpp"
+#include "chainstate.hpp"
+#include "block.hpp"
+#include "chainparams.hpp"
+#include "node_config.hpp"
 
 /**
  * @file test_miner_integration.hpp
@@ -59,22 +60,16 @@ inline bool runMinerIntegrationTests()
 
     // Build a candidate block, finalize it, add to chain
     try {
-        Block candidate = // we can't directly call buildCandidateBlock because it's private, 
-                          // so let's do a short hack:
-        // We'll mimic the approach from pop_miner or do a partial approach:
-        {
-            Block block;
-            BlockHeader hdr;
-            hdr.blockHeight = 0; // genesis?
-            hdr.prevBlockHash = "";
-            hdr.timestamp = static_cast<uint64_t>(std::time(nullptr));
-            hdr.version = 1;
-            block.header = hdr;
-            // coinbase or transaction
-            rxrevoltchain::core::Transaction tx("coinbase","testMiner", 50, {});
-            block.transactions.push_back(tx);
-            return block;
-        }();
+
+        BlockHeader hdr;
+        hdr.blockHeight = 0; // genesis?
+        hdr.prevBlockHash = "";
+        hdr.timestamp = static_cast<uint64_t>(std::time(nullptr));
+        hdr.version = 1;
+        // coinbase or transaction
+        rxrevoltchain::core::Transaction tx("coinbase","testMiner", 50, {});
+        Block candidate(hdr, {tx}, {});
+        candidate.transactions.push_back(tx);
 
         // Now add the block to chainState
         chainState.addBlock(std::make_shared<Block>(candidate));

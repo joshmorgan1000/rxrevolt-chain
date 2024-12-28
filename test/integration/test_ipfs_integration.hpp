@@ -5,9 +5,9 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include "../../src/ipfs_integration/ipfs_pinner.hpp"
-#include "../../src/ipfs_integration/cid_registry.hpp"
-#include "../../src/util/logger.hpp"
+#include "ipfs_pinner.hpp"
+#include "cid_registry.hpp"
+#include "logger.hpp"
 
 /**
  * @file test_ipfs_integration.hpp
@@ -43,13 +43,13 @@ inline bool runIpfsIntegrationTests()
     // 1) Create a naive IpfsPinner instance
     // In real usage, might supply IPFS config or host/port. We'll assume default constructor.
 
-    IpfsPinner pinner;
+    IPFSPinner pinner;
     // 2) Pin a sample CID
     {
         std::string cid = "QmExampleIPFSCID";
         bool pinned = false;
         try {
-            pinned = pinner.pin(cid);
+            pinned = pinner.pinCID(cid);
         } catch (const std::exception &ex) {
             std::cerr << "[test_ipfs_integration] pinner.pin threw error: " << ex.what() << "\n";
             allPassed = false;
@@ -61,7 +61,7 @@ inline bool runIpfsIntegrationTests()
             // verify pinned
             bool isPinned = false;
             try {
-                isPinned = pinner.isPinned(cid);
+                isPinned = pinner.verifyPin(cid);
             } catch (const std::exception &ex) {
                 std::cerr << "[test_ipfs_integration] pinner.isPinned threw: " << ex.what() << "\n";
                 allPassed = false;
@@ -75,25 +75,25 @@ inline bool runIpfsIntegrationTests()
 
     // 3) Register that CID in cid_registry
     {
-        CidRegistry registry;
+        CIDRegistry registry;
         // add
-        bool added = registry.addCid("QmExampleIPFSCID", "metadata about it");
+        bool added = registry.addCID("QmExampleIPFSCID", "metadata about it");
         if (!added) {
             std::cerr << "[test_ipfs_integration] registry.addCid returned false.\n";
             allPassed = false;
         }
         // check existence
-        if (!registry.cidExists("QmExampleIPFSCID")) {
+        if (!registry.isKnownCID("QmExampleIPFSCID")) {
             std::cerr << "[test_ipfs_integration] registry reports CID does not exist.\n";
             allPassed = false;
         }
         // remove
-        bool removed = registry.removeCid("QmExampleIPFSCID");
+        bool removed = registry.removeCID("QmExampleIPFSCID");
         if (!removed) {
             std::cerr << "[test_ipfs_integration] registry.removeCid returned false.\n";
             allPassed = false;
         }
-        if (registry.cidExists("QmExampleIPFSCID")) {
+        if (registry.isKnownCID("QmExampleIPFSCID")) {
             std::cerr << "[test_ipfs_integration] registry says CID still exists after removal.\n";
             allPassed = false;
         }
@@ -104,7 +104,7 @@ inline bool runIpfsIntegrationTests()
         std::string cid = "QmExampleIPFSCID";
         bool unpinned = false;
         try {
-            unpinned = pinner.unpin(cid);
+            unpinned = pinner.unpinCID(cid);
         } catch (const std::exception &ex) {
             std::cerr << "[test_ipfs_integration] pinner.unpin threw: " << ex.what() << "\n";
             allPassed = false;

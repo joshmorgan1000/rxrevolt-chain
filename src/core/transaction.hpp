@@ -8,7 +8,7 @@
 #include <utility>
 #include <cstdint>
 
-#include "../util/hashing.hpp"
+#include "hashing.hpp"
 
 /**
  * @file transaction.hpp

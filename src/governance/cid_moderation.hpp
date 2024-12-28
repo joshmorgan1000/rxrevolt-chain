@@ -11,9 +11,9 @@
 #include <algorithm>
 #include <sstream>
 
-#include "../ipfs_integration/cid_registry.hpp"
-#include "../util/logger.hpp"
-#include "../util/hashing.hpp"
+#include "cid_registry.hpp"
+#include "logger.hpp"
+#include "hashing.hpp"
 
 /**
  * @file cid_moderation.hpp
@@ -87,6 +87,8 @@ struct Proposal
 class CIDModeration
 {
 public:
+    CIDModeration();
+
     /**
      * @brief Construct a new CIDModeration object.
      * @param authorizedKeys A set/list of community or foundation keys authorized to sign proposals.
@@ -271,5 +273,10 @@ private:
 
 } // namespace governance
 } // namespace rxrevoltchain
+
+inline rxrevoltchain::governance::CIDModeration::CIDModeration()
+    : registry_(*(new rxrevoltchain::ipfs_integration::CIDRegistry())), threshold_(0) {
+    // Default constructor
+}
 
 #endif // RXREVOLTCHAIN_GOVERNANCE_CID_MODERATION_HPP

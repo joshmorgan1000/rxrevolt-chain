@@ -7,7 +7,7 @@
 #include <stdexcept>
 #include <cstdint>
 #include <iomanip>
-#include "../util/logger.hpp"
+#include "logger.hpp"
 
 /**
  * @file response.hpp

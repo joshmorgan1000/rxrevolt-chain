@@ -5,8 +5,8 @@
 #include <iostream>
 #include <string>
 #include <stdexcept>
-#include "../../src/network/p2p_node.hpp"
-#include "../../src/network/connection_manager.hpp"
+#include "p2p_node.hpp"
+#include "connection_manager.hpp"
 
 /**
  * @file test_network_integration.hpp

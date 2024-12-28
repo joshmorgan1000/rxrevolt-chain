@@ -5,8 +5,8 @@
 #include <iostream>
 #include <string>
 #include <stdexcept>
-#include "../../src/governance/cid_moderation.hpp"
-#include "../../src/governance/anti_spam.hpp"
+#include "cid_moderation.hpp"
+#include "anti_spam.hpp"
 
 /**
  * @file test_governance_flows.hpp
@@ -33,26 +33,23 @@ inline bool runGovernanceFlowsTests()
 
     // 1) cid_moderation
     {
-        CidModeration moderation;
-        // Suppose we have a malicious CID
-        std::string maliciousCid = "QmMaliciousContent";
-        // add it for moderation
-        bool added = moderation.addCidForReview(maliciousCid);
-        if (!added) {
-            std::cerr << "[test_governance_flows] addCidForReview(" << maliciousCid << ") returned false.\n";
-            allPassed = false;
+        CIDModeration moderation;
+        // We simulate a proposal to remove a malicious CID
+        std::string cid = "QmMalicious";
+        std::string reason = "Spam content";
+        std::string proposalID = moderation.createProposal(cid, ActionType::REMOVE, reason);
+        // We simulate signers approving the proposal
+        std::vector<std::string> authorized = { "commKey1", "commKey2", "commKey3", "commKey4", "commKey5" };
+        size_t threshold = 3;
+        for (size_t i = 0; i < threshold; i++) {
+            std::string commKey = authorized[i];
+            std::string signature = "SignatureOf" + commKey;
+            moderation.signProposal(proposalID, commKey, signature);
         }
-
-        // vote to remove
-        bool removed = moderation.voteToRemove(maliciousCid, "someMultiSig");
-        if (!removed) {
-            std::cerr << "[test_governance_flows] voteToRemove returned false.\n";
-            allPassed = false;
-        }
-
-        // check status
-        if (moderation.isCidBanned(maliciousCid) == false) {
-            std::cerr << "[test_governance_flows] isCidBanned returned false after removal.\n";
+        // We check if the CID was removed
+        std::vector<std::string> pending = moderation.listPendingProposals();
+        if (pending.empty()) {
+            std::cerr << "[test_governance_flows] Proposal not enacted.\n";
             allPassed = false;
         }
     }

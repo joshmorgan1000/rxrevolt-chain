@@ -10,7 +10,7 @@
 #include <stdexcept>
 #include <sstream>
 #include <chrono>
-#include "../util/logger.hpp"
+#include "logger.hpp"
 #include "p2p_node.hpp"
 
 /**

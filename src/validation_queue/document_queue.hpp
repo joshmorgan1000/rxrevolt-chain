@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <ctime>
 #include <atomic>
-#include "../util/logger.hpp"
+#include "logger.hpp"
 
 /**
  * @file document_queue.hpp

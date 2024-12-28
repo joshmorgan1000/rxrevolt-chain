@@ -3,8 +3,8 @@
 
 #include <string>
 #include <stdexcept>
-#include "../validation_queue/document_queue.hpp"
-#include "../util/logger.hpp"
+#include "document_queue.hpp"
+#include "logger.hpp"
 
 /**
  * @file document_verifier.hpp

@@ -87,12 +87,13 @@ rxrevoltchain/
 └─ scripts/
     ├─ build.sh                 // Helper script for building locally
     ├─ run_local_node.sh        // Example script to start a node locally
-    └─ ipfs_bootstrap.sh        // Script to set up or connect to IPFS bootstrap peers
+    ├─ ipfs_bootstrap.sh        // Script to set up or connect to IPFS bootstrap peers
+    └─ rxrevolt_node.conf       // Basic example of a configuration file
 ```
 
-**Implementation Detail**: Almost everything is **header-only** (Option A), except for `main.cpp`. This is to simplify distribution, at the cost of larger compile times when changing headers.
+**Implementation Detail**: Almost everything is **header-only**, except for `main.cpp`. This is to simplify distribution, at the cost of larger compile times when changing headers.
 
-**Block Time**: Dynamically selected (Option C), typically shorter than 10 minutes but scaled based on node load.
+**Block Time**: Dynamically selected, typically shorter than 10 minutes but scaled based on node load.
 
 **Anti-Spam**: **Built into consensus**. No direct deposit or burn is used.
 
@@ -121,7 +122,7 @@ rxrevoltchain/
 
 5. **Virtual Write-Ahead Log (WAL)**  
    - “Confirmed” documents and metadata wait in an intermediate WAL.  
-   - **Time-based** finalization (once per day) merges them into a new **sqlite** snapshot (Option B).  
+   - **Time-based** finalization (once per day) merges them into a new **sqlite** snapshot.  
    - This snapshot is pinned for 1 week (retention policy).
 
 ### 3.2 Mining & Proof-of-Pinning
@@ -145,7 +146,7 @@ rxrevoltchain/
      - Enforce rules (dynamic block time, reward logic, etc.).
 
 5. **Reward**  
-   - Blocks that include valid PoP get a **variable** reward (Option C). If no valid PoP is present, **miners forfeit** the reward.  
+   - Blocks that include valid PoP get a **variable** reward. If no valid PoP is present, **miners forfeit** the reward.  
    - The reward is based on network usage/conditions (potential synergy with the number of pinned CIDs).
 
 ---
@@ -239,8 +240,8 @@ A **single “Full Node” model** is employed:
 ## Appendix
 
 - **Related Files**:
-  - [docs/SPECIFICATIONS.md](docs/SPECIFICATIONS.md): In-depth protocol details (block format, reward formula, etc.).  
-  - [docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md): Rationale behind major design trade-offs.  
+  - [docs/SPECIFICATIONS.md](SPECIFICATIONS.md): In-depth protocol details (block format, reward formula, etc.).  
+  - [docs/DESIGN_DECISIONS.md](DESIGN_DECISIONS.md): Rationale behind major design trade-offs.  
 
 - **Conventions**:
   - Where possible, major changes are introduced via **version-bit soft-fork** (miner signaling).

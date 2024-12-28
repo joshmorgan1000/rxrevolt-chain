@@ -5,9 +5,9 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include "../../src/consensus/pop_consensus.hpp"
-#include "../../src/consensus/cid_randomness.hpp"
-#include "../../src/util/hashing.hpp"
+#include "pop_consensus.hpp"
+#include "cid_randomness.hpp"
+#include "hashing.hpp"
 
 /**
  * @file test_pop_consensus.hpp
@@ -33,6 +33,7 @@ namespace test {
  */
 inline bool runPopConsensusTests()
 {
+    using namespace rxrevoltchain::core;
     using namespace rxrevoltchain::consensus;
 
     bool allPassed = true;

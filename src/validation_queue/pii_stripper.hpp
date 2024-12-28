@@ -4,8 +4,8 @@
 #include <string>
 #include <regex>
 #include <stdexcept>
-#include "../validation_queue/document_queue.hpp"
-#include "../util/logger.hpp"
+#include "document_queue.hpp"
+#include "logger.hpp"
 
 /**
  * @file pii_stripper.hpp

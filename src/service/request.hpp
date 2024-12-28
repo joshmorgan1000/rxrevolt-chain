@@ -8,7 +8,7 @@
 #include <mutex>
 #include <sstream>
 #include <vector>
-#include "../util/logger.hpp"
+#include "logger.hpp"
 
 /**
  * @file request.hpp

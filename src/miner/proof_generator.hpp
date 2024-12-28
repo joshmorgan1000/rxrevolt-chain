@@ -8,10 +8,10 @@
 #include <algorithm>
 #include <cstdint>
 
-#include "../consensus/pop_consensus.hpp" // for rxrevoltchain::consensus::PopProof
-#include "../util/hashing.hpp"           // for sha256
-#include "../util/logger.hpp"            // for logging
-#include "../util/thread_pool.hpp"       // if we wish to parallelize chunk hashing (optional)
+#include "pop_consensus.hpp"
+#include "hashing.hpp"
+#include "logger.hpp"
+#include "thread_pool.hpp"
 
 /**
  * @file proof_generator.hpp

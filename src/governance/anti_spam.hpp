@@ -10,9 +10,9 @@
 #include <ctime>
 #include <vector>
 #include <algorithm>
-#include "../core/transaction.hpp"
-#include "../util/logger.hpp"
-#include "../util/hashing.hpp"
+#include "transaction.hpp"
+#include "logger.hpp"
+#include "hashing.hpp"
 
 /**
  * @file anti_spam.hpp
@@ -49,7 +49,7 @@
  *   }
  *
  *   // Possibly allow deposit:
- *   antiSpam.applyDeposit(tx.getFromAddress(), 100 /*some tokens*/);
+ *   antiSpam.applyDeposit(tx.getFromAddress(), 100 <some tokens>);
  *   @endcode
  */
 
@@ -175,6 +175,18 @@ public:
         // Regenerate first
         regenerateSpamScore(it->second);
         return {it->second.spamScore, it->second.spamBudget};
+    }
+
+    inline bool canSubmitCid(const std::string& user)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto it = records_.find(user);
+        if (it == records_.end()) {
+            return false;
+        }
+        // Regenerate first
+        regenerateSpamScore(it->second);
+        return it->second.spamScore < it->second.spamBudget;
     }
 
 private:

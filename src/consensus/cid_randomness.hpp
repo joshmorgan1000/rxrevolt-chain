@@ -8,7 +8,7 @@
 #include <sstream>
 #include <iomanip>
 #include <stdexcept>
-#include "../util/hashing.hpp"  // for sha256 if needed
+#include "hashing.hpp"
 
 /**
  * @file cid_randomness.hpp

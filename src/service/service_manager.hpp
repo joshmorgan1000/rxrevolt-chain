@@ -6,7 +6,7 @@
 #include <functional>
 #include <stdexcept>
 #include <mutex>
-#include "../util/logger.hpp"
+#include "logger.hpp"
 #include "request.hpp"
 #include "response.hpp"
 

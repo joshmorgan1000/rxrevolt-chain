@@ -3,9 +3,9 @@
 
 #include <cassert>
 #include <iostream>
-#include "../../src/core/block.hpp"
-#include "../../src/core/transaction.hpp"
-#include "../../src/consensus/block_validation.hpp"
+#include "block.hpp"
+#include "transaction.hpp"
+#include "block_validation.hpp"
 
 /**
  * @file test_block.hpp
@@ -78,7 +78,7 @@ inline bool runBlockTests()
         block.transactions.push_back(tx);
 
         // Create a dummy popProof
-        rxrevoltchain::consensus::PopProof proof;
+        rxrevoltchain::core::PopProof proof;
         proof.nodePublicKey = "PUBKEY_example";
         proof.merkleRootChunks = "dummyChunksRoot";
         proof.signature = "SIG_example";

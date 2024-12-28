@@ -4,7 +4,7 @@
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
-#include "../../src/validation_queue/document_queue.hpp"
+#include "document_queue.hpp"
 
 /**
  * @file test_document_queue.hpp

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(RxRevoltChain
+project(rxrevolt-chain
   VERSION 0.1
   DESCRIPTION "RxRevoltChain: A custom blockchain rewarding IPFS pinning for healthcare cost data"
   LANGUAGES CXX
@@ -37,6 +37,12 @@ if(NOT ZLIB_FOUND)
   message(FATAL_ERROR "ZLIB is required but not found.")
 endif()
 
+# 4. CURL (for HTTP requests)
+find_package(CURL REQUIRED)
+if(NOT CURL_FOUND)
+  message(FATAL_ERROR "CURL is required but not found.")
+endif()
+
 # ------------------------------------------------------------------------------
 # Gather sources
 # ------------------------------------------------------------------------------
@@ -54,42 +60,62 @@ if(NOT EXISTS "${MAIN_SOURCE}")
   set(MAIN_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
 endif()
 
-add_executable(rxrevoltchain
-  ${MAIN_SOURCE}
-  ${RXREVOLTCHAIN_SOURCES}
+include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/config
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/governance
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ipfs_integration
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/miner
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/network
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/service
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/util
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/validation_queue
+    ${CURL_INCLUDE_DIRS}
+    ${OPENSSL_INCLUDE_DIRS}
+    ${ZLIB_INCLUDE_DIRS}
+)
+
+add_executable(rxrevolt-chain
+    ${MAIN_SOURCE}
 )
 
 # ------------------------------------------------------------------------------
 # Link libraries to the node
 # ------------------------------------------------------------------------------
-target_link_libraries(rxrevoltchain
-  PRIVATE
-  OpenSSL::SSL
-  OpenSSL::Crypto
-  Threads::Threads
-  ZLIB::ZLIB
+target_link_libraries(rxrevolt-chain
+    PRIVATE
+    OpenSSL::SSL
+    OpenSSL::Crypto
+    Threads::Threads
+    ZLIB::ZLIB
+    CURL::libcurl 
 )
 
 # ------------------------------------------------------------------------------
 # Installation (optional)
 # ------------------------------------------------------------------------------
-install(TARGETS rxrevoltchain
-  RUNTIME DESTINATION bin
+install(TARGETS rxrevolt-chain
+    RUNTIME DESTINATION bin
 )
 
 # ------------------------------------------------------------------------------
 # Testing (optional)
 # ------------------------------------------------------------------------------
-option(BUILD_TESTS "Build the test suite" OFF)
+# Turn BUILD_TESTS to ON to enable testing
+set(BUILD_TESTS ON CACHE BOOL "Build tests" FORCE)
+
 if(BUILD_TESTS)
   enable_testing()
   add_subdirectory(test)
 endif()
 
-message(STATUS "========== RxRevoltChain Configuration ==========")
+message(STATUS "========== rxrevolt-chain Configuration ==========")
 message(STATUS "Project Name:        ${PROJECT_NAME}")
 message(STATUS "Project Version:     ${PROJECT_VERSION}")
-message(STATUS "OpenSSL Version:     ${OpenSSL_VERSION}")
+message(STATUS "OpenSSL Version:     ${OPENSSL_VERSION}")
 message(STATUS "C++ Standard:        ${CMAKE_CXX_STANDARD}")
 message(STATUS "Build Tests:         ${BUILD_TESTS}")
-message(STATUS "=================================================")
+message(STATUS "==================================================")

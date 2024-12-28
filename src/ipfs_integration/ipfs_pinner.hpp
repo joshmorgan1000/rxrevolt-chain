@@ -45,6 +45,8 @@ inline size_t writeCallback(char *ptr, size_t size, size_t nmemb, void *userdata
 class IPFSPinner
 {
 public:
+    IPFSPinner();
+
     /**
      * @brief Construct a new IPFSPinner object with the IPFS daemon endpoint.
      *        Example: "http://127.0.0.1:5001"
@@ -160,5 +162,9 @@ private:
 
 } // namespace ipfs_integration
 } // namespace rxrevoltchain
+
+inline rxrevoltchain::ipfs_integration::IPFSPinner::IPFSPinner() {
+    // Default constructor, no endpoint set
+}
 
 #endif // RXREVOLTCHAIN_IPFS_PINNER_HPP

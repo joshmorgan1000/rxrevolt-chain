@@ -5,11 +5,11 @@
 #include <stdexcept>
 #include <unordered_set>
 #include <memory>
-#include "../util/logger.hpp"
+#include "logger.hpp"
 #include "chainstate.hpp"
 #include "block.hpp"
-#include "../network/p2p_node.hpp"
-#include "../consensus/block_validation.hpp"
+#include "p2p_node.hpp"
+#include "block_validation.hpp"
 
 /**
  * @file sync_manager.hpp

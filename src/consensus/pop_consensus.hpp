@@ -5,8 +5,8 @@
 #include <stdexcept>
 #include <vector>
 #include <sstream>
-#include "../core/block.hpp"
-#include "../util/logger.hpp"
+#include "block.hpp"
+#include "logger.hpp"
 #include "cid_randomness.hpp"
 
 /**

@@ -10,7 +10,7 @@
 #include <algorithm>
 #include <locale>
 #include <mutex>
-#include "../../config/node_config.hpp"
+#include "node_config.hpp"
 #include "logger.hpp"
 
 /**

@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <sstream>
-#include "../util/hashing.hpp"
+#include "hashing.hpp"
 
 /**
  * @file merkle_proof.hpp

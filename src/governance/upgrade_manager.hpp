@@ -8,9 +8,9 @@
 #include <mutex>
 #include <vector>
 #include <algorithm>
-#include "../core/block.hpp"
-#include "../util/logger.hpp"
-#include "../util/hashing.hpp"
+#include "block.hpp"
+#include "logger.hpp"
+#include "hashing.hpp"
 
 /**
  * @file upgrade_manager.hpp

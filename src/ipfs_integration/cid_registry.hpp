@@ -7,6 +7,7 @@
 #include <vector>
 #include <stdexcept>
 #include <mutex>
+#include "logger.hpp"
 
 /**
  * @file cid_registry.hpp
@@ -77,18 +78,20 @@ public:
      * @param blockAdded The block height when it was introduced.
      * @throw std::runtime_error if the CID already exists in the registry.
      */
-    inline void addCID(const std::string &cid,
+    inline bool addCID(const std::string &cid,
                        const std::string &desc = "",
                        uint64_t blockAdded = 0)
     {
         if (cid.empty()) {
-            throw std::runtime_error("CIDRegistry: cannot add an empty CID.");
+            rxrevoltchain::util::logger::error("CIDRegistry: cannot add an empty CID.");
+            return false;
         }
 
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = registry_.find(cid);
         if (it != registry_.end()) {
-            throw std::runtime_error("CIDRegistry: CID already exists: " + cid);
+            rxrevoltchain::util::logger::error("CIDRegistry: CID already exists: " + cid);
+            return false;
         }
 
         CIDInfo info;
@@ -98,6 +101,7 @@ public:
         info.blockAdded = blockAdded;
 
         registry_[cid] = info;
+        return true;
     }
 
     /**
@@ -120,14 +124,16 @@ public:
      * @param cid The IPFS CID to remove.
      * @throw std::runtime_error if not found.
      */
-    inline void removeCID(const std::string &cid)
+    inline bool removeCID(const std::string &cid)
     {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = registry_.find(cid);
         if (it == registry_.end()) {
-            throw std::runtime_error("CIDRegistry: Cannot remove. CID not found: " + cid);
+            rxrevoltchain::util::logger::error("CIDRegistry: Cannot remove. CID not found: " + cid);
+            return false;
         }
         it->second.status = CIDStatus::REMOVED;
+        return true;
     }
 
     /**

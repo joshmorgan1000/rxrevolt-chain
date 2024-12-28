@@ -1,114 +1,86 @@
 #
 # test/CMakeLists.txt for RxRevoltChain
-# This file will discover and build the unit tests and integration tests, 
+# This file will discover and build the unit tests and integration tests,
 # linking them against the main RxRevoltChain modules.
 #
 
 cmake_minimum_required(VERSION 3.16)
 
-# We assume the top-level project(RxRevoltChain) is defined in the parent CMakeLists.
-# If needed, we can do: project(RxRevoltChainTests VERSION 1.0 LANGUAGES CXX)
+project(RxRevoltChainTests VERSION 1.0 LANGUAGES CXX)
 
-# Unit test headers
-set(UNIT_TEST_SOURCES
-    unit/test_block.hpp
-    unit/test_pop_consensus.hpp
-    unit/test_chainstate.hpp
-    unit/test_document_queue.hpp
+# ------------------------------------------------------------------------------
+# Global settings
+# ------------------------------------------------------------------------------
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+# Optionally increase warnings
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
+
+# ------------------------------------------------------------------------------
+# Dependencies
+# ------------------------------------------------------------------------------
+# 1. Find OpenSSL (ECDSA, hashing, etc.)
+find_package(OpenSSL REQUIRED)
+if(NOT OpenSSL_FOUND)
+  message(FATAL_ERROR "OpenSSL is required but not found.")
+endif()
+
+# 2. Find Threads (for concurrency, thread pools, etc.)
+find_package(Threads REQUIRED)
+if(NOT Threads_FOUND)
+  message(FATAL_ERROR "Threads library required but not found.")
+endif()
+
+# 3. ZLIB (needed for compression)
+find_package(ZLIB REQUIRED)
+if(NOT ZLIB_FOUND)
+  message(FATAL_ERROR "ZLIB is required but not found.")
+endif()
+
+# 4. CURL (for HTTP requests)
+find_package(CURL REQUIRED)
+if(NOT CURL_FOUND)
+  message(FATAL_ERROR "CURL is required but not found.")
+endif()
+
+include_directories(
+    ${CMAKE_CURRENT_LIST_DIR}/..
+    ${CMAKE_CURRENT_LIST_DIR}/../config
+    ${CMAKE_CURRENT_LIST_DIR}/../src
+    ${CMAKE_CURRENT_LIST_DIR}/../src/consensus
+    ${CMAKE_CURRENT_LIST_DIR}/../src/core
+    ${CMAKE_CURRENT_LIST_DIR}/../src/governance
+    ${CMAKE_CURRENT_LIST_DIR}/../src/ipfs_integration
+    ${CMAKE_CURRENT_LIST_DIR}/../src/miner
+    ${CMAKE_CURRENT_LIST_DIR}/../src/network
+    ${CMAKE_CURRENT_LIST_DIR}/../src/service
+    ${CMAKE_CURRENT_LIST_DIR}/../src/util
+    ${CMAKE_CURRENT_LIST_DIR}/../src/validation_queue
+    ${CMAKE_CURRENT_LIST_DIR}/integration
+    ${CMAKE_CURRENT_LIST_DIR}/unit
+    ${CURL_INCLUDE_DIRS}
+    ${OPENSSL_INCLUDE_DIRS}
+    ${ZLIB_INCLUDE_DIRS}
 )
 
-# Integration test headers
-set(INTEGRATION_TEST_SOURCES
-    integration/test_ipfs_integration.hpp
-    integration/test_governance_flows.hpp
-    integration/test_miner_integration.hpp
-    integration/test_network_integration.hpp
-)
-
-# We'll create a single test_runner.cpp on the fly. That .cpp includes a main that calls all runXTests().
-# This approach keeps the .hpp files purely header-based if desired.
-set(TEST_RUNNER_FILE "${CMAKE_CURRENT_BINARY_DIR}/test_runner.cpp")
-
-file(WRITE "${TEST_RUNNER_FILE}" 
-"#include <iostream>\\n
-#include <string>\\n
-#include <stdexcept>\\n
-
-// Forward declarations from each test_xxx.hpp
-namespace rxrevoltchain {
-namespace test {
-    // unit:
-    bool runBlockTests();
-    bool runPopConsensusTests();
-    bool runChainstateTests();
-    bool runDocumentQueueTests();
-
-    // integration:
-    bool runIpfsIntegrationTests();
-    bool runGovernanceFlowsTests();
-    bool runMinerIntegrationTests();
-    bool runNetworkIntegrationTests();
-}
-}
-
-int main() {
-    using namespace rxrevoltchain::test;
-    bool overallSuccess = true;
-
-    std::cout << \"[test_runner] Starting RxRevoltChain test suite...\\n\";
-
-    // Unit tests
-    {
-        bool ok = runBlockTests();
-        if(!ok) overallSuccess = false;
-    }
-    {
-        bool ok = runPopConsensusTests();
-        if(!ok) overallSuccess = false;
-    }
-    {
-        bool ok = runChainstateTests();
-        if(!ok) overallSuccess = false;
-    }
-    {
-        bool ok = runDocumentQueueTests();
-        if(!ok) overallSuccess = false;
-    }
-
-    // Integration tests
-    {
-        bool ok = runIpfsIntegrationTests();
-        if(!ok) overallSuccess = false;
-    }
-    {
-        bool ok = runGovernanceFlowsTests();
-        if(!ok) overallSuccess = false;
-    }
-    {
-        bool ok = runMinerIntegrationTests();
-        if(!ok) overallSuccess = false;
-    }
-    {
-        bool ok = runNetworkIntegrationTests();
-        if(!ok) overallSuccess = false;
-    }
-
-    if(overallSuccess) {
-        std::cout << \"[test_runner] All tests PASSED\\n\";
-        return 0;
-    } else {
-        std::cerr << \"[test_runner] Some tests FAILED\\n\";
-        return 1;
-    }
-}
-")
-
-# Now we define our single test executable:
+# Now define our single test executable:
 add_executable(rxrevoltchain_tests
-    "${TEST_RUNNER_FILE}"
-    ${UNIT_TEST_SOURCES}
-    ${INTEGRATION_TEST_SOURCES}
+    test_runner.cpp
 )
+
+target_link_libraries(rxrevoltchain_tests
+    PRIVATE
+    OpenSSL::SSL
+    OpenSSL::Crypto
+    ZLIB::ZLIB
+    Threads::Threads
+    CURL::libcurl
+)
+
+# Force the linker language to CXX, ensuring no "Cannot determine link language" error:
+set_target_properties(rxrevoltchain_tests PROPERTIES LINKER_LANGUAGE CXX)
 
 # Provide includes for the source directories
 target_include_directories(rxrevoltchain_tests
@@ -117,12 +89,8 @@ target_include_directories(rxrevoltchain_tests
     ${CMAKE_CURRENT_LIST_DIR}/..
 )
 
-# If needed, link any libraries, e.g. a core lib, or external libs (OpenSSL, etc.) 
-# that the chain code depends on. For demonstration, we'll skip it or do something like:
-# target_link_libraries(rxrevoltchain_tests PRIVATE rxrevoltchain_core)
-
-# Enable ctest
+# Enable CTest
 enable_testing()
 add_test(NAME rxrevoltchain_tests COMMAND rxrevoltchain_tests)
 
-message(STATUS "Configured test/CMakeLists.txt for both unit and integration tests.")
+message(STATUS "Configured test/CMakeLists.txt for both unit and integration tests (with includes in test_runner, using C++ linker).")

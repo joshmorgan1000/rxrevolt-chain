@@ -5,10 +5,10 @@
 #include <iostream>
 #include <stdexcept>
 #include <memory>
-#include "../../src/core/chainstate.hpp"
-#include "../../src/core/block.hpp"
-#include "../../src/core/transaction.hpp"
-#include "../../src/consensus/block_validation.hpp"
+#include "chainstate.hpp"
+#include "block.hpp"
+#include "transaction.hpp"
+#include "block_validation.hpp"
 
 /**
  * @file test_chainstate.hpp
