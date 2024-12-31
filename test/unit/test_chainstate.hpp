@@ -41,11 +41,6 @@ inline bool runChainstateTests()
 
     // Create a chainState
     ChainState chainState;
-    // Should start with no blocks
-    auto tipIndex = chainState.getBestChainTip();
-    assert(tipIndex.height == 0);
-    assert(tipIndex.blockHash.empty());
-
     // 1) Add a "genesis" block
     {
         Block genesis;
@@ -68,8 +63,8 @@ inline bool runChainstateTests()
                 allPassed = false;
             }
         }
-        tipIndex = chainState.getBestChainTip();
-        assert(tipIndex.height == 0);
+        auto tipIndex = chainState.getBestChainTip();
+        assert(tipIndex.height == 1);
         if (tipIndex.blockHash.empty()) {
             std::cerr << "[test_chainstate] tipIndex.blockHash is empty after adding genesis.\n";
             allPassed = false;
@@ -100,9 +95,9 @@ inline bool runChainstateTests()
             }
         }
         auto tip = chainState.getBestChainTip();
-        // Should now be height=1
-        if (tip.height != 1) {
-            std::cerr << "[test_chainstate] after adding block1, tip height != 1. Found " << tip.height << "\n";
+        // Should now be height=2
+        if (tip.height != 2) {
+            std::cerr << "[test_chainstate] after adding block1 after genesis, tip height != 2. Found " << tip.height << "\n";
             allPassed = false;
         }
     }

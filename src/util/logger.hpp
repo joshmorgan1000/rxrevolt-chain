@@ -180,8 +180,15 @@ private:
         std::ostringstream line;
         line << "[" << timestamp.str() << "][" << levelName << "] " << msg << std::endl;
 
+        std::string colorBegin = "";
+        std::string colorReset = "";
+        // If it is an error, make it red
+        if (level == LogLevel::ERROR || level == LogLevel::CRITICAL) {
+            colorBegin = "\033[1;31m";
+            colorReset = "\033[0m";
+        }
         // Console output
-        std::cout << line.str();
+        std::cout << colorBegin << line.str() << colorReset;
         std::cout.flush();
 
         // File output if enabled

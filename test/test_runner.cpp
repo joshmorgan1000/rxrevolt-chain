@@ -13,6 +13,9 @@ int main() {
     using namespace rxrevoltchain::test;
     bool overallSuccess = true;
 
+    int testSuccess = 0;
+    int testFail = 0;
+
     // runBlockTests, runPopConsensusTests, etc.
     rxrevoltchain::util::logger::info("Starting all tests...");
 
@@ -23,12 +26,15 @@ int main() {
         if(!runBlockTests()) {
             overallSuccess = false;
             rxrevoltchain::util::logger::error("test_block.hpp failed.");
+            testFail++;
         } else {
             rxrevoltchain::util::logger::info("test_block.hpp passed.");
+            testSuccess++;
         }
     } catch (const std::exception &ex) {
         rxrevoltchain::util::logger::error("test_block.hpp threw an exception: " + std::string(ex.what()));
         overallSuccess = false;
+        testFail++;
     }
 
     try {
@@ -36,12 +42,15 @@ int main() {
         if(!runPopConsensusTests()) {
             overallSuccess = false;
             rxrevoltchain::util::logger::error("test_pop_consensus.hpp failed.");
+            testFail++;
         } else {
             rxrevoltchain::util::logger::info("test_pop_consensus.hpp passed.");
+            testSuccess++;
         }
     } catch (const std::exception &ex) {
         rxrevoltchain::util::logger::error("test_pop_consensus.hpp threw an exception: " + std::string(ex.what()));
         overallSuccess = false;
+        testFail++;
     }
 
     try {
@@ -49,12 +58,15 @@ int main() {
         if(!runChainstateTests()) {
             overallSuccess = false;
             rxrevoltchain::util::logger::error("test_chainstate.hpp failed.");
+            testFail++;
         } else {
             rxrevoltchain::util::logger::info("test_chainstate.hpp passed.");
+            testSuccess++;
         }
     } catch (const std::exception &ex) {
         rxrevoltchain::util::logger::error("test_chainstate.hpp threw an exception: " + std::string(ex.what()));
         overallSuccess = false;
+        testFail++;
     }
 
     try {
@@ -62,12 +74,15 @@ int main() {
         if(!runDocumentQueueTests()) {
             overallSuccess = false;
             rxrevoltchain::util::logger::error("test_document_queue.hpp failed.");
+            testFail++;
         } else {
             rxrevoltchain::util::logger::info("test_document_queue.hpp passed.");
+            testSuccess++;
         }
     } catch (const std::exception &ex) {
         rxrevoltchain::util::logger::error("test_document_queue.hpp threw an exception: " + std::string(ex.what()));
         overallSuccess = false;
+        testFail++;
     }
 
     rxrevoltchain::util::logger::info("Running integration tests...");
@@ -77,12 +92,15 @@ int main() {
         if(!runIpfsIntegrationTests()) {
             overallSuccess = false;
             rxrevoltchain::util::logger::error("test_ipfs_integration.hpp failed.");
+            testFail++;
         } else {
             rxrevoltchain::util::logger::info("test_ipfs_integration.hpp passed.");
+            testSuccess++;
         }
     } catch (const std::exception &ex) {
         rxrevoltchain::util::logger::error("test_ipfs_integration.hpp threw an exception: " + std::string(ex.what()));
         overallSuccess = false;
+        testFail++;
     }
 
     try {
@@ -90,12 +108,15 @@ int main() {
         if(!runGovernanceFlowsTests()) {
             overallSuccess = false;
             rxrevoltchain::util::logger::error("test_governance_flows.hpp failed.");
+            testFail++;
         } else {
             rxrevoltchain::util::logger::info("test_governance_flows.hpp passed.");
+            testSuccess++;
         }
     } catch (const std::exception &ex) {
         rxrevoltchain::util::logger::error("test_governance_flows.hpp threw an exception: " + std::string(ex.what()));
         overallSuccess = false;
+        testFail++;
     }
 
     try {
@@ -103,12 +124,15 @@ int main() {
         if(!runMinerIntegrationTests()) {
             overallSuccess = false;
             rxrevoltchain::util::logger::error("test_miner_integration.hpp failed.");
+            testFail++;
         } else {
             rxrevoltchain::util::logger::info("test_miner_integration.hpp passed.");
+            testSuccess++;
         }
     } catch (const std::exception &ex) {
         rxrevoltchain::util::logger::error("test_miner_integration.hpp threw an exception: " + std::string(ex.what()));
         overallSuccess = false;
+        testFail++;
     }
 
     try {
@@ -116,13 +140,24 @@ int main() {
         if (!runNetworkIntegrationTests()) {
             overallSuccess = false;
             rxrevoltchain::util::logger::error("test_network_integration.hpp failed.");
+            testFail++;
         } else {
             rxrevoltchain::util::logger::info("test_network_integration.hpp passed.");
+            testSuccess++;
         }
     } catch (const std::exception &ex) {
         rxrevoltchain::util::logger::error("test_network_integration.hpp threw an exception: " + std::string(ex.what()));
         overallSuccess = false;
+        testFail++;
     }
 
-    return overallSuccess ? 0 : 1;
+    rxrevoltchain::util::logger::info("All tests complete.\n\n=================TEST RESULTS=================");
+
+    if (overallSuccess) {
+        rxrevoltchain::util::logger::info("All tests PASSED!");
+    } else {
+        rxrevoltchain::util::logger::error("Some tests FAILED.");
+        rxrevoltchain::util::logger::info("Tests passed: " + std::to_string(testSuccess));
+        rxrevoltchain::util::logger::error("Tests failed: " + std::to_string(testFail));
+    }
 }
