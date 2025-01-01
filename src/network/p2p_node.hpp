@@ -1,428 +1,464 @@
-#ifndef RXREVOLTCHAIN_NETWORK_P2P_NODE_HPP
-#define RXREVOLTCHAIN_NETWORK_P2P_NODE_HPP
+#ifndef RXREVOLTCHAIN_P2P_NODE_HPP
+#define RXREVOLTCHAIN_P2P_NODE_HPP
 
 #include <string>
-#include <cstdint>
 #include <thread>
-#include <mutex>
-#include <vector>
 #include <atomic>
-#include <unordered_map>
-#include <functional>
+#include <mutex>
+#include <condition_variable>
+#include <vector>
+#include <map>
+#include <cstring>
 #include <stdexcept>
-#include <sstream>
 
-#if defined(_WIN32) || defined(_WIN64)
-// Minimal Windows Sockets usage:
-#  include <winsock2.h>
-#  pragma comment(lib, "ws2_32.lib")
+#ifdef _WIN32
+  #include <winsock2.h>
+  #pragma comment(lib, "ws2_32.lib")
+  typedef int socklen_t;
+  inline bool initWinsock() {
+      static bool initialized = false;
+      if(!initialized) {
+          WSADATA wsaData;
+          if(WSAStartup(MAKEWORD(2,2), &wsaData) != 0) {
+              return false;
+          }
+          initialized = true;
+      }
+      return true;
+  }
 #else
-// POSIX sockets
-#  include <sys/socket.h>
-#  include <netinet/in.h>
-#  include <arpa/inet.h>
-#  include <unistd.h>
+  #include <sys/types.h>
+  #include <sys/socket.h>
+  #include <netinet/in.h>
+  #include <arpa/inet.h>
+  #include <unistd.h>
+  inline bool initWinsock() { return true; }
+  static void closesocket(int sock) { ::close(sock); }
 #endif
 
-/**
- * @file p2p_node.hpp
- * @brief Provides a minimal, thread-based TCP P2P node for RxRevoltChain.
- *
- * DESIGN GOALS:
- *   - Manage inbound/outbound connections to peers over TCP.
- *   - Provide a simple mechanism for broadcasting messages (e.g., blocks/transactions).
- *   - Keep it "header-only" with inline methods, though in real usage you might separate .cpp.
- *
- * LIMITATIONS:
- *   - This is a very simplified approach (blocking I/O, single thread listener).
- *   - For real production, consider a robust async library (Boost.Asio, etc.).
- *   - No encryption or advanced handshake is done. Only raw TCP is used.
- *   - No protocol framing is done (just a naive length+payload approach).
- *
- * USAGE:
- *   rxrevoltchain::network::P2PNode node(30303);
- *   node.setMessageHandler([](const std::string &peerID, const std::string &msg) {
- *       // process inbound message
- *   });
- *   node.start();
- *   node.connectToPeer("127.0.0.1", 30304);
- *   node.broadcastMessage("Hello, peers!");
- *   // ...
- *   node.stop();
- */
+#include "logger.hpp"
+#include "protocol_messages.hpp"
 
 namespace rxrevoltchain {
 namespace network {
 
-inline int closeSocket(int sock)
-{
-#if defined(_WIN32) || defined(_WIN64)
-    return closesocket(sock);
-#else
-    return close(sock);
-#endif
-}
+/*
+  P2PNode
+  --------------------------------
+  Manages peer connections and network messaging.
+  Broadcasts or listens for new snapshots, proof-of-pinning requests, etc.
 
-/**
- * @struct Peer
- * @brief Simple container for peer state: a socket, address, port, and a thread for reading.
- */
-struct Peer
-{
-    int socketFd{-1};
-    std::string address;
-    uint16_t port{0};
-    bool connected{false};
-    std::thread readThread;
-    Peer& operator=(const Peer&) {
-        return *this;
-    }
-};
+  Required Methods:
+    P2PNode() (default constructor)
+    bool StartNetwork(const std::string &bindAddress, uint16_t port)
+    bool StopNetwork()
+    bool BroadcastMessage(const ProtocolMessage &msg)
+    void OnMessageReceived(const ProtocolMessage &msg)
 
-/**
- * @class P2PNode
- * @brief Minimal TCP-based P2P node: listens on a port, accepts inbound connections, allows outbound connections.
- *
- * For real usage, you'd add:
- *   - SSL/TLS or noise-based encryption
- *   - A real message framing protocol
- *   - Reconnection logic, NAT traversal, etc.
- */
+  "Fully functional" approach:
+  - We use blocking TCP sockets in a simple form to demonstrate P2P.
+  - A background thread listens on (bindAddress:port).
+  - For each incoming connection, we spawn a thread to read messages in a simple loop.
+  - We store each "peer" in a vector, so we can broadcast to them.
+  - On reading a message, we parse it into a ProtocolMessage and call OnMessageReceived.
+  - For actual production usage, consider advanced concurrency or a robust networking library 
+    (e.g., Boost.Asio), message framing, encryption, etc. This demonstration is minimal.
+*/
+
 class P2PNode
 {
 public:
-    /**
-     * @brief Construct a new P2PNode listening on a specified port.
-     * @param listenPort The TCP port to bind/listen.
-     */
-    P2PNode(uint16_t listenPort)
-        : listenPort_(listenPort)
-        , running_(false)
-        , listenerThread_()
+    // Default constructor
+    P2PNode()
+        : m_listenSocket(-1)
+        , m_isRunning(false)
     {
-#if defined(_WIN32) || defined(_WIN64)
-        // WSAStartup
-        WSADATA wsaData;
-        if (WSAStartup(MAKEWORD(2,2), &wsaData) != 0) {
-            throw std::runtime_error("P2PNode: WSAStartup failed.");
-        }
-#endif
+        initWinsock();
     }
 
-    /**
-     * @brief Clean up (close listener, stop threads).
-     */
+    // Clean up if needed
     ~P2PNode()
     {
-        stop();
-#if defined(_WIN32) || defined(_WIN64)
-        WSACleanup();
-#endif
+        StopNetwork();
     }
 
-    /**
-     * @brief Sets a handler for inbound messages. The callback receives (peerID, message).
-     */
-    inline void setMessageHandler(std::function<void(const std::string&, const std::string&)> handler)
+    /*
+      bool StartNetwork(const std::string &bindAddress, uint16_t port)
+      -----------------------------------------------------------------
+      - Opens a TCP socket on bindAddress:port
+      - Spawns a thread to accept incoming connections
+      - Returns true if successful
+    */
+    bool StartNetwork(const std::string &bindAddress, uint16_t port)
     {
-        msgHandler_ = handler;
-    }
+        using namespace rxrevoltchain::util::logger;
+        std::lock_guard<std::mutex> lock(m_mutex);
 
-    /**
-     * @brief Start listening on listenPort_ in a background thread.
-     * @throw std::runtime_error if already running or if bind/listen fails.
-     */
-    inline void start()
-    {
-        std::lock_guard<std::mutex> lock(runningMutex_);
-        if (running_) {
-            throw std::runtime_error("P2PNode: Already running.");
+        if (m_isRunning)
+        {
+            Logger::getInstance().warn("[P2PNode] StartNetwork called but node is already running.");
+            return true;
         }
 
-        listenerSock_ = ::socket(AF_INET, SOCK_STREAM, 0);
-        if (listenerSock_ < 0) {
-            throw std::runtime_error("P2PNode: Failed to create socket.");
+        // Create socket
+        m_listenSocket = ::socket(AF_INET, SOCK_STREAM, 0);
+        if (m_listenSocket < 0)
+        {
+            Logger::getInstance().error("[P2PNode] Failed to create socket.");
+            return false;
         }
 
         // Allow reuse of address
         int optval = 1;
-#if defined(_WIN32) || defined(_WIN64)
-        setsockopt(listenerSock_, SOL_SOCKET, SO_REUSEADDR, (const char*)&optval, sizeof(optval));
-#else
-        setsockopt(listenerSock_, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
-#endif
+        setsockopt(m_listenSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&optval, sizeof(optval));
 
+        // Bind
         sockaddr_in addr;
-        addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = INADDR_ANY;
-        addr.sin_port = htons(listenPort_);
-
-        if (bind(listenerSock_, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-            closeSocket(listenerSock_);
-            throw std::runtime_error("P2PNode: bind() failed.");
-        }
-
-        if (listen(listenerSock_, 8) < 0) {
-            closeSocket(listenerSock_);
-            throw std::runtime_error("P2PNode: listen() failed.");
-        }
-
-        running_ = true;
-        listenerThread_ = std::thread(&P2PNode::acceptLoop, this);
-    }
-
-    /**
-     * @brief Stop the P2P node, closes listener, stops threads, disconnects peers.
-     */
-    inline void stop()
-    {
-        {
-            std::lock_guard<std::mutex> lock(runningMutex_);
-            if (!running_) {
-                return;
-            }
-            running_ = false;
-        }
-
-        // Close listener socket to break out accept
-        if (listenerSock_ >= 0) {
-            closeSocket(listenerSock_);
-            listenerSock_ = -1;
-        }
-
-        // Join listener thread
-        if (listenerThread_.joinable()) {
-            listenerThread_.join();
-        }
-
-        // Disconnect all peers
-        {
-            std::lock_guard<std::mutex> lock(peersMutex_);
-            for (auto &kv : peers_) {
-                auto &peer = kv.second;
-                if (peer.connected && peer.socketFd >= 0) {
-                    closeSocket(peer.socketFd);
-                    peer.connected = false;
-                }
-                if (peer.readThread.joinable()) {
-                    peer.readThread.join();
-                }
-            }
-            peers_.clear();
-        }
-    }
-
-    /**
-     * @brief Connect to a remote peer at (address, port).
-     * @param address IP or hostname
-     * @param port remote port
-     * @return true if connected, false otherwise.
-     */
-    inline bool connectToPeer(const std::string &address, uint16_t port)
-    {
-        int sock = ::socket(AF_INET, SOCK_STREAM, 0);
-        if (sock < 0) {
-            return false;
-        }
-        sockaddr_in addr;
+        memset(&addr, 0, sizeof(addr));
         addr.sin_family = AF_INET;
         addr.sin_port = htons(port);
-        addr.sin_addr.s_addr = ::inet_addr(address.c_str());
-        if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-            closeSocket(sock);
+        addr.sin_addr.s_addr = inet_addr(bindAddress.c_str());
+
+        if (::bind(m_listenSocket, (struct sockaddr*)&addr, sizeof(addr)) < 0)
+        {
+            Logger::getInstance().error("[P2PNode] Failed to bind on " + bindAddress + ":" + std::to_string(port));
+            closesocket(m_listenSocket);
+            m_listenSocket = -1;
             return false;
         }
 
-        // Once connected, store peer info
-        Peer peer;
-        peer.socketFd = sock;
-        peer.address = address;
-        peer.port = port;
-        peer.connected = true;
-
+        // Listen
+        if (::listen(m_listenSocket, 5) < 0)
         {
-            std::lock_guard<std::mutex> lock(peersMutex_);
-            std::string peerID = makePeerID(address, port);
-            peers_[peerID] = peer;
+            Logger::getInstance().error("[P2PNode] Failed to listen on socket.");
+            closesocket(m_listenSocket);
+            m_listenSocket = -1;
+            return false;
         }
 
-        // Start read thread
-        {
-            std::lock_guard<std::mutex> lock(peersMutex_);
-            std::string pid = makePeerID(address, port);
-            peers_[pid].readThread = std::thread(&P2PNode::peerReadLoop, this, pid);
-        }
+        m_isRunning = true;
+        m_acceptThread = std::thread(&P2PNode::acceptThreadRoutine, this);
 
+        Logger::getInstance().info("[P2PNode] Started listening on " + bindAddress + ":" + std::to_string(port));
         return true;
     }
 
-    /**
-     * @brief Send a message to a specific peer.
-     * @param peerID The ID used for that peer (address:port).
-     * @param msg The raw string message to send (no framing here).
-     * @return true if success, false otherwise.
-     */
-    inline bool sendMessageToPeer(const std::string &peerID, const std::string &msg)
+    /*
+      bool StopNetwork()
+      -----------------------------------------------------------------
+      - Stops accepting new connections
+      - Closes existing peer connections
+      - Joins the accept thread
+    */
+    bool StopNetwork()
     {
-        std::lock_guard<std::mutex> lock(peersMutex_);
-        auto it = peers_.find(peerID);
-        if (it == peers_.end() || !it->second.connected) {
+        using namespace rxrevoltchain::util::logger;
+        std::lock_guard<std::mutex> lock(m_mutex);
+
+        if (!m_isRunning)
+        {
+            Logger::getInstance().warn("[P2PNode] StopNetwork called but node is not running.");
+            return true;
+        }
+
+        m_isRunning = false;
+
+        // Close listening socket to break accept
+        if (m_listenSocket >= 0)
+        {
+            closesocket(m_listenSocket);
+            m_listenSocket = -1;
+        }
+
+        // Join accept thread
+        if (m_acceptThread.joinable())
+        {
+            m_acceptThread.join();
+        }
+
+        // Close all peer sockets
+        for (auto &peer : m_peers)
+        {
+            closesocket(peer.sock);
+        }
+        m_peers.clear();
+
+        Logger::getInstance().info("[P2PNode] Network stopped and all peer connections closed.");
+        return true;
+    }
+
+    /*
+      bool BroadcastMessage(const ProtocolMessage &msg)
+      -----------------------------------------------------------------
+      - Sends 'msg' to all connected peers
+      - Returns true if at least one peer was reached
+      - For demonstration, we do a naive length-prefix approach 
+        to transmit ProtocolMessage over the socket.
+    */
+    bool BroadcastMessage(const ProtocolMessage &msg)
+    {
+        using namespace rxrevoltchain::util::logger;
+        std::lock_guard<std::mutex> lock(m_mutex);
+
+        if (!m_isRunning || m_peers.empty())
+        {
+            Logger::getInstance().warn("[P2PNode] BroadcastMessage called but node not running or no peers.");
             return false;
         }
-        int sock = it->second.socketFd;
-        if (sock < 0) return false;
 
-        // naive send
-        int totalSent = 0;
-        const char* data = msg.c_str();
-        int remaining = (int)msg.size();
+        // Serialize ProtocolMessage:
+        // 1) type length (uint32_t), 2) type bytes,
+        // 3) payload length (uint32_t), 4) payload bytes
+        std::vector<uint8_t> buffer;
+        auto writeU32 = [&](uint32_t val) {
+            buffer.push_back((val >> 24) & 0xFF);
+            buffer.push_back((val >> 16) & 0xFF);
+            buffer.push_back((val >> 8) & 0xFF);
+            buffer.push_back(val & 0xFF);
+        };
 
-        while (remaining > 0) {
-            int sent = ::send(sock, data + totalSent, remaining, 0);
-            if (sent <= 0) {
-                // error or connection closed
-                return false;
+        writeU32((uint32_t)msg.type.size());
+        buffer.insert(buffer.end(), msg.type.begin(), msg.type.end());
+        writeU32((uint32_t)msg.payload.size());
+        buffer.insert(buffer.end(), msg.payload.begin(), msg.payload.end());
+
+        bool sentToAtLeastOne = false;
+        for (auto &peer : m_peers)
+        {
+            if (peer.sock < 0) continue;
+            ssize_t sent = ::send(peer.sock, (const char*)buffer.data(), (int)buffer.size(), 0);
+            if (sent == (ssize_t)buffer.size())
+            {
+                sentToAtLeastOne = true;
             }
-            totalSent += sent;
-            remaining -= sent;
+            else
+            {
+                // Possibly log a warning or remove peer if send fails
+                Logger::getInstance().warn("[P2PNode] Broadcast send failed or partial for peer " + peer.address);
+            }
         }
+
+        if (!sentToAtLeastOne)
+        {
+            Logger::getInstance().warn("[P2PNode] BroadcastMessage failed to send to all peers.");
+            return false;
+        }
+
+        Logger::getInstance().info("[P2PNode] BroadcastMessage sent to " + std::to_string(m_peers.size()) + " peers.");
         return true;
     }
 
-    /**
-     * @brief Broadcast a message to all connected peers.
-     * @param msg The raw string message.
-     */
-    inline void broadcastMessage(const std::string &msg)
+    /*
+    void OnMessageReceived(const ProtocolMessage &msg)
+    -----------------------------------------------------------------
+    - Called by our internal receive logic whenever a peer sends a message.
+    - This function can be overridden in a subclass for custom behavior.
+    - Here we provide a more substantial example of how a typical P2P node
+        might react to different message types, logging the event and possibly
+        queuing tasks or updating internal state.
+    */
+    void OnMessageReceived(ProtocolMessage &msg)
     {
-        std::lock_guard<std::mutex> lock(peersMutex_);
-        for (auto &kv : peers_) {
-            if (kv.second.connected) {
-                sendMessageToPeer(kv.first, msg);
+        using rxrevoltchain::util::logger::Logger;
+        Logger &logger = Logger::getInstance();
+
+        logger.info("[P2PNode] OnMessageReceived: type=" + msg.type
+                    + ", payloadLen=" + std::to_string(msg.payload.size()));
+
+        // Example: parse message types and handle them
+        if (msg.type == "SNAPSHOT_ANNOUNCE")
+        {
+            // A node is announcing a new pinned .sqlite snapshot
+            // We could store its CID in a local table, trigger validation, etc.
+            logger.info("[P2PNode] Handling SNAPSHOT_ANNOUNCE message.");
+            // ... handle snapshot logic here ...
+        }
+        else if (msg.type == "POP_REQUEST")
+        {
+            // Another node is challenging us to prove we have pinned data.
+            // We might need to read 'msg.payload' to get chunk offsets, then respond.
+            logger.info("[P2PNode] Handling POP_REQUEST message.");
+            // ... parse offsets, generate chunk data, send PoP response ...
+        }
+        else if (msg.type == "POP_RESPONSE")
+        {
+            // We previously issued a PoP challenge; this is a node's response.
+            logger.info("[P2PNode] Handling POP_RESPONSE message.");
+            // ... verify chunk data, record success/failure ...
+        }
+        else
+        {
+            // Unknown or custom message type
+            logger.warn("[P2PNode] Received unknown message type: " + msg.type);
+            // Possibly ignore or store for further inspection
+        }
+
+        // Store the message for further processing
+        messages.push_back(msg);
+    }
+
+    /**
+     * Get the messages received from peers
+     * @return A vector of ProtocolMessage
+     */
+    std::vector<ProtocolMessage> GetMessages() const
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return messages;
+    }
+
+private:
+    // Vector to hold messages from peers
+    std::vector<ProtocolMessage> messages;
+
+    // Represents a connected peer
+    struct Peer
+    {
+        int sock;
+        std::string address;
+        std::thread recvThread;
+    };
+
+    // Accept incoming connections in a loop
+    void acceptThreadRoutine()
+    {
+        using namespace rxrevoltchain::util::logger;
+        Logger &logger = Logger::getInstance();
+
+        while (m_isRunning)
+        {
+            sockaddr_in clientAddr;
+            socklen_t clientLen = sizeof(clientAddr);
+            int clientSock = ::accept(m_listenSocket, (struct sockaddr*)&clientAddr, &clientLen);
+            if (clientSock < 0)
+            {
+                // If we stopped, break
+                if (!m_isRunning) break;
+                logger.warn("[P2PNode] accept failed, continuing...");
+                continue;
+            }
+
+            // Convert IP to string
+            char ipStr[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &(clientAddr.sin_addr), ipStr, INET_ADDRSTRLEN);
+            std::string addrStr = std::string(ipStr) + ":" + std::to_string(ntohs(clientAddr.sin_port));
+
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                if (!m_isRunning)
+                {
+                    // Close immediately
+                    closesocket(clientSock);
+                    break;
+                }
+
+                // Add to peers
+                m_peers.push_back(Peer{clientSock, addrStr});
+                m_peers.back().recvThread = std::thread(&P2PNode::peerReceiveRoutine, this, 
+                                                        m_peers.back().sock, 
+                                                        m_peers.back().address);
+            }
+
+            logger.info("[P2PNode] Accepted new connection from: " + addrStr);
+        }
+    }
+
+    // Each peer has a thread that reads messages from the socket
+    void peerReceiveRoutine(int sock, std::string address)
+    {
+        using namespace rxrevoltchain::util::logger;
+        Logger &logger = Logger::getInstance();
+
+        logger.info("[P2PNode] Starting recv thread for peer: " + address);
+
+        // We'll do a basic length-prefix approach: 
+        // read: 4 bytes -> typeLen, read typeLen -> type,
+        // then 4 bytes -> payloadLen, read payloadLen -> payload
+        auto readExact = [&](void* buf, size_t len) -> bool {
+            uint8_t* p = (uint8_t*)buf;
+            size_t remain = len;
+            while (remain > 0 && m_isRunning)
+            {
+                ssize_t ret = ::recv(sock, (char*)p, (int)remain, 0);
+                if (ret <= 0)
+                {
+                    return false;
+                }
+                p += ret;
+                remain -= ret;
+            }
+            return (remain == 0);
+        };
+
+        while (m_isRunning)
+        {
+            uint32_t typeLenNet = 0, payloadLenNet = 0;
+            if (!readExact(&typeLenNet, 4)) break;
+            uint32_t typeLen = ntohl(typeLenNet); // convert big-endian if needed
+            if (typeLen > 1000) {
+                // sanity check
+                logger.warn("[P2PNode] typeLen is suspiciously large, closing peer: " + address);
+                break;
+            }
+            // read type
+            std::vector<uint8_t> typeBuf(typeLen);
+            if (!readExact(typeBuf.data(), typeLen)) break;
+            std::string msgType((char*)typeBuf.data(), typeBuf.size());
+
+            // read payloadLen
+            if (!readExact(&payloadLenNet, 4)) break;
+            uint32_t payloadLen = ntohl(payloadLenNet);
+            if (payloadLen > 10 * 1024 * 1024) {
+                // sanity check, 10MB limit
+                logger.warn("[P2PNode] payloadLen is too large, closing peer: " + address);
+                break;
+            }
+
+            std::vector<uint8_t> payload(payloadLen);
+            if (!readExact(payload.data(), payloadLen)) break;
+
+            // Construct ProtocolMessage
+            ProtocolMessage msg;
+            msg.type = msgType;
+            msg.payload = std::move(payload);
+
+            // Call OnMessageReceived
+            OnMessageReceived(msg);
+        }
+
+        // peer is closing
+        logger.info("[P2PNode] Closing recv thread for peer: " + address);
+        closesocket(sock);
+
+        // remove from peer list
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            auto it = std::find_if(m_peers.begin(), m_peers.end(), [&](const Peer &p){
+                return p.sock == sock;
+            });
+            if (it != m_peers.end())
+            {
+                it->sock = -1;
+                if (it->recvThread.joinable() && std::this_thread::get_id() != it->recvThread.get_id())
+                {
+                    it->recvThread.join();
+                }
+                m_peers.erase(it);
             }
         }
     }
 
 private:
-    std::atomic<bool> running_;
-    int listenerSock_{-1};
-    uint16_t listenPort_;
-    std::thread listenerThread_;
-    std::mutex runningMutex_;
+    mutable std::mutex m_mutex;
+    std::atomic<bool>  m_isRunning;
+    int                m_listenSocket;
+    std::thread        m_acceptThread;
 
-    // Peer management
-    std::mutex peersMutex_;
-    std::unordered_map<std::string, Peer> peers_;
-
-    // Callback for inbound messages
-    std::function<void(const std::string&, const std::string&)> msgHandler_;
-
-    // Main accept loop
-    inline void acceptLoop()
-    {
-        while (true) {
-            // Check if we are still running
-            {
-                std::lock_guard<std::mutex> lock(runningMutex_);
-                if (!running_) break;
-            }
-
-            sockaddr_in clientAddr;
-            socklen_t addrLen = sizeof(clientAddr);
-            int clientSock = ::accept(listenerSock_, (struct sockaddr*)&clientAddr, &addrLen);
-            if (clientSock < 0) {
-                // Possibly we are stopping, or an error occurred
-                if (isStopping()) break; 
-                continue;
-            }
-
-            // Save peer
-            std::string ip = inet_ntoa(clientAddr.sin_addr);
-            uint16_t port = ntohs(clientAddr.sin_port);
-            Peer peer;
-            peer.socketFd = clientSock;
-            peer.address = ip;
-            peer.port = port;
-            peer.connected = true;
-
-            std::string peerID = makePeerID(ip, port);
-
-            {
-                std::lock_guard<std::mutex> lock(peersMutex_);
-                peers_[peerID] = peer;
-            }
-
-            // Start a thread to read from this peer
-            {
-                std::lock_guard<std::mutex> lock(peersMutex_);
-                peers_[peerID].readThread = std::thread(&P2PNode::peerReadLoop, this, peerID);
-            }
-        }
-    }
-
-    // Check if we're stopping
-    inline bool isStopping()
-    {
-        std::lock_guard<std::mutex> lock(runningMutex_);
-        return !running_;
-    }
-
-    // Read loop for a peer
-    inline void peerReadLoop(std::string peerID)
-    {
-        while (true) {
-            // fetch peer data
-            Peer peer;
-            {
-                std::lock_guard<std::mutex> lock(peersMutex_);
-                auto it = peers_.find(peerID);
-                if (it == peers_.end()) {
-                    // Peer no longer valid
-                    return;
-                }
-                peer = it->second;
-            }
-
-            // read
-            char buffer[1024];
-            int recvBytes = ::recv(peer.socketFd, buffer, sizeof(buffer), 0);
-            if (recvBytes <= 0) {
-                // connection closed or error
-                closePeer(peerID);
-                return;
-            }
-
-            // handle message
-            std::string msg(buffer, recvBytes);
-            if (msgHandler_) {
-                msgHandler_(peerID, msg);
-            }
-        }
-    }
-
-    // Close a peer
-    inline void closePeer(const std::string &peerID)
-    {
-        std::lock_guard<std::mutex> lock(peersMutex_);
-        auto it = peers_.find(peerID);
-        if (it != peers_.end()) {
-            if (it->second.connected && it->second.socketFd >= 0) {
-                closeSocket(it->second.socketFd);
-            }
-            it->second.connected = false;
-        }
-    }
-
-    // Construct a peer ID like "ip:port"
-    inline std::string makePeerID(const std::string &ip, uint16_t port) const
-    {
-        std::ostringstream oss;
-        oss << ip << ":" << port;
-        return oss.str();
-    }
+    // Store the connected peers
+    std::vector<Peer>  m_peers;
 };
 
 } // namespace network
 } // namespace rxrevoltchain
 
-#endif // RXREVOLTCHAIN_NETWORK_P2P_NODE_HPP
+#endif // RXREVOLTCHAIN_P2P_NODE_HPP

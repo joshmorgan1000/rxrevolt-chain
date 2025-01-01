@@ -1,160 +1,67 @@
-#ifndef RXREVOLTCHAIN_NETWORK_PROTOCOL_MESSAGES_HPP
-#define RXREVOLTCHAIN_NETWORK_PROTOCOL_MESSAGES_HPP
+#ifndef RXREVOLTCHAIN_PROTOCOL_MESSAGES_HPP
+#define RXREVOLTCHAIN_PROTOCOL_MESSAGES_HPP
 
 #include <string>
-#include <stdexcept>
+#include <vector>
 #include <cstdint>
-#include <sstream>
-#include <unordered_map>
-#include <cstring>
-
-/**
- * @file protocol_messages.hpp
- * @brief Defines minimal message types and serialization for RxRevoltChain's P2P protocol.
- *
- * GOALS:
- *  - Provide a minimal mechanism for distinguishing BLOCK, TX, PROOF, etc.
- *  - Encode/decode messages into raw bytes for sending over sockets.
- *  - Keep it header-only and straightforward to integrate with p2p_node.hpp.
- *
- * DESIGN:
- *  - Each message has a 1-byte MessageType + 4-byte payload length (big-endian) + payload bytes.
- *  - The payload is a raw string (could be JSON, binary block data, etc.).
- *  - A real system might adopt Protobuf, Cap'n Proto, or custom framing. This file is a simplified approach.
- *
- * TYPICAL USAGE:
- *   rxrevoltchain::network::ProtocolMessage msg;
- *   msg.type = MessageType::BLOCK;
- *   msg.payload = "serialized block data...";
- *
- *   std::string raw = rxrevoltchain::network::encodeMessage(msg);
- *   // send 'raw' over p2p
- *
- *   // on receive:
- *   rxrevoltchain::network::ProtocolMessage parsed = rxrevoltchain::network::decodeMessage(raw);
- *   if (parsed.type == MessageType::BLOCK) {
- *       // handle block
- *   }
- */
 
 namespace rxrevoltchain {
 namespace network {
 
-/**
- * @enum MessageType
- * @brief Represents the type of P2P message being exchanged.
- *
- * Extend or modify as needed:
- *   - BLOCK: A new block announcement or request
- *   - TRANSACTION: Transaction data
- *   - PROOF: PoP or chunk proof data
- *   - PING, PONG: Basic keep-alive
- *   - CUSTOM: For any chain-specific extra usage
- */
-enum class MessageType : uint8_t {
-    UNKNOWN     = 0,
-    BLOCK       = 1,
-    TRANSACTION = 2,
-    PROOF       = 3,
-    PING        = 4,
-    PONG        = 5,
-    CUSTOM      = 255
-};
+/*
+  protocol_messages.hpp
+  --------------------------------
+  Defines the data structures used for snapshot announcements, PoP requests, responses, etc.
+  According to the specification:
 
-/**
- * @struct ProtocolMessage
- * @brief A minimal container for P2P messages.
- *   - type: One of the MessageType enum
- *   - payload: Raw data (serialized block, tx, proof, etc.)
- */
+  Public Structures / Classes (examples, expand as needed):
+   - struct ProtocolMessage
+       Contains a type (SNAPSHOT_ANNOUNCE, POP_REQUEST, POP_RESPONSE, etc.) and the serialized payload.
+   - struct SnapshotAnnounce
+       Holds cid, maybe dbFileHash.
+   - struct PoPRequest
+       Holds random chunk offsets, etc.
+   - struct PoPResponse
+       Contains the node’s chunk data or merkle proof.
+
+  "Fully functional" approach:
+   - These structs hold fields used in network communication.
+   - You can integrate serialization/deserialization as needed in other parts of the code.
+*/
+
 struct ProtocolMessage
 {
-    MessageType type;
-    std::string payload;
+    // A short string describing the message type
+    //   e.g. "SNAPSHOT_ANNOUNCE", "POP_REQUEST", "POP_RESPONSE", etc.
+    std::string type;
+
+    // The raw serialized data payload for this message.
+    // Could be JSON, binary, or another format.
+    std::vector<uint8_t> payload;
 };
 
-/**
- * @brief Convert a message to raw bytes for sending over the network.
- * Format:
- *   [1 byte: messageType] [4 bytes: payloadLen in big-endian] [payload bytes...]
- * @param msg The ProtocolMessage to encode.
- * @return A std::string of raw bytes.
- */
-inline std::string encodeMessage(const ProtocolMessage &msg)
+struct SnapshotAnnounce
 {
-    // 1. Start with 1 byte for the type
-    std::string raw;
-    raw.push_back(static_cast<char>(msg.type));
+    // The IPFS CID representing the newly pinned .sqlite snapshot.
+    std::string cid;
 
-    // 2. Then 4 bytes for length (big-endian)
-    uint32_t length = static_cast<uint32_t>(msg.payload.size());
-    for (int i = 3; i >= 0; --i) {
-        raw.push_back(static_cast<char>((length >> (i * 8)) & 0xFF));
-    }
+    // Optional file hash (e.g., a separate SHA-256 of the .sqlite) for additional validation.
+    std::string dbFileHash;
+};
 
-    // 3. Then the payload
-    raw.append(msg.payload);
-
-    return raw;
-}
-
-/**
- * @brief Decode raw bytes into a ProtocolMessage.
- * Expects the format described in encodeMessage().
- * @param raw The received raw bytes.
- * @return A ProtocolMessage.
- * @throw std::runtime_error if the data is malformed or too short.
- */
-inline ProtocolMessage decodeMessage(const std::string &raw)
+struct PoPRequest
 {
-    if (raw.size() < 5) {
-        throw std::runtime_error("decodeMessage: data too short to contain header");
-    }
+    // A list of random offsets (e.g. chunk indices) for proof-of-pinning challenge.
+    std::vector<size_t> offsets;
+};
 
-    // 1. First byte is type
-    MessageType msgType = static_cast<MessageType>(static_cast<unsigned char>(raw[0]));
-
-    // 2. Next 4 bytes for length in big-endian
-    uint32_t length = 0;
-    for (int i = 0; i < 4; ++i) {
-        length = (length << 8) | static_cast<unsigned char>(raw[1 + i]);
-    }
-
-    // 3. Check if enough bytes remain
-    if (raw.size() < 5 + length) {
-        throw std::runtime_error("decodeMessage: payload length mismatch or truncated data");
-    }
-
-    // 4. Extract the payload
-    std::string payload = raw.substr(5, length);
-
-    ProtocolMessage msg;
-    msg.type = msgType;
-    msg.payload = payload;
-
-    return msg;
-}
-
-/**
- * @brief Convert MessageType enum to a human-readable string (for logging/debug).
- * @param t The MessageType
- * @return A string name (BLOCK, TRANSACTION, PROOF, etc.)
- */
-inline std::string messageTypeToString(MessageType t)
+struct PoPResponse
 {
-    switch (t) {
-    case MessageType::UNKNOWN:      return "UNKNOWN";
-    case MessageType::BLOCK:        return "BLOCK";
-    case MessageType::TRANSACTION:  return "TRANSACTION";
-    case MessageType::PROOF:        return "PROOF";
-    case MessageType::PING:         return "PING";
-    case MessageType::PONG:         return "PONG";
-    case MessageType::CUSTOM:       return "CUSTOM";
-    default:                        return "INVALID_TYPE";
-    }
-}
+    // The chunk data or merkle proof that the node returns to prove possession of the requested offsets.
+    std::vector<uint8_t> chunkData;
+};
 
 } // namespace network
 } // namespace rxrevoltchain
 
-#endif // RXREVOLTCHAIN_NETWORK_PROTOCOL_MESSAGES_HPP
+#endif // RXREVOLTCHAIN_PROTOCOL_MESSAGES_HPP

@@ -9,7 +9,7 @@ project(rxrevolt-chain
 # ------------------------------------------------------------------------------
 # Global settings
 # ------------------------------------------------------------------------------
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
@@ -43,6 +43,12 @@ if(NOT CURL_FOUND)
   message(FATAL_ERROR "CURL is required but not found.")
 endif()
 
+# 5. SQLite3 (for local storage)
+find_package(SQLite3 REQUIRED)
+if(NOT SQLite3_FOUND)
+  message(FATAL_ERROR "SQLite3 is required but not found.")
+endif()
+
 # ------------------------------------------------------------------------------
 # Gather sources
 # ------------------------------------------------------------------------------
@@ -64,18 +70,16 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/config
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/governance
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ipfs_integration
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/miner
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/network
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/service
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ipfs_integration
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pinner
     ${CMAKE_CURRENT_SOURCE_DIR}/src/util
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/validation_queue
     ${CURL_INCLUDE_DIRS}
     ${OPENSSL_INCLUDE_DIRS}
     ${ZLIB_INCLUDE_DIRS}
+    ${SQLite3_INCLUDE_DIRS}
 )
 
 add_executable(rxrevolt-chain
@@ -91,7 +95,8 @@ target_link_libraries(rxrevolt-chain
     OpenSSL::Crypto
     Threads::Threads
     ZLIB::ZLIB
-    CURL::libcurl 
+    CURL::libcurl
+    SQLite::SQLite3
 )
 
 # ------------------------------------------------------------------------------

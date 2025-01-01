@@ -1,197 +1,196 @@
-#ifndef RXREVOLTCHAIN_CORE_TRANSACTION_HPP
-#define RXREVOLTCHAIN_CORE_TRANSACTION_HPP
+#ifndef RXREVOLTCHAIN_TRANSACTION_HPP
+#define RXREVOLTCHAIN_TRANSACTION_HPP
 
 #include <string>
 #include <vector>
 #include <stdexcept>
-#include <sstream>
-#include <utility>
-#include <cstdint>
+#include <openssl/evp.h>
+#include <openssl/sha.h>
 
-#include "hashing.hpp"
+/*
+  transaction.hpp
+  ----------------------------------------------------------------
+  Represents a “submission” or “removal” request with signatures, metadata, etc.
+  This implementation uses the *current* OpenSSL EVP-based approach to verify
+  ECDSA signatures on secp256k1, avoiding deprecated OpenSSL calls.
 
-/**
- * @file transaction.hpp
- * @brief Defines a minimal Transaction class supporting:
- *  - Basic value transfers (sender, recipient, amount).
- *  - References to pinned IPFS data (via CIDs).
- *  - Optional signature fields if needed for validation.
- *
- * In a production system, you'd integrate with:
- *   - A wallet or address scheme for fromAddress / toAddress.
- *   - ECDSA or Ed25519 signatures for authenticity.
- *   - CIPFS references for pinned data (list of CIDs).
- */
+  Public Methods (must remain):
+    Transaction()                                      // default constructor
+    void SetType(const std::string &type)              // e.g. "document_submission" or "removal_request"
+    const std::string& GetType() const
+    void SetSignature(const std::vector<uint8_t> &signature)
+    const std::vector<uint8_t>& GetSignature() const
+    void SetMetadata(const std::string &metadata)      // JSON formatted metadata
+    const std::string& GetMetadata() const
+    void SetPayload(const std::vector<uint8_t> &data)
+    const std::vector<uint8_t>& GetPayload() const
+    bool VerifySignature(const std::vector<uint8_t> &publicKey) const
+
+  Explanation:
+   - We treat 'publicKey' as an uncompressed secp256k1 key of length 65 bytes:
+       [0x04][32-byte X][32-byte Y].
+     The signature must be in DER format for ECDSA.
+   - We create an EVP_PKEY via `EVP_PKEY_new_raw_public_key(EVP_PKEY_EC, ...)`,
+     skipping the 0x04 byte for the actual X+Y portion.
+   - Then use EVP_DigestVerifyInit/Update/Final to check the signature against
+     SHA-256(payload).
+*/
 
 namespace rxrevoltchain {
 namespace core {
 
-/**
- * @class Transaction
- * @brief Represents a simple transaction on RxRevoltChain.
- *
- * Fields:
- *   - fromAddress: Who is sending the tokens (may also be a contract or special address).
- *   - toAddress: Destination for the tokens (or a burn address).
- *   - value: The amount of tokens transferred. Zero if it's only referencing pinned data.
- *   - cids: A list of IPFS CIDs referencing pinned data relevant to this transaction.
- *   - nonce / timestamp: If needed for replay protection or ordering (optional).
- *   - signature: (Optional) signature over the transaction hash.
- */
 class Transaction
 {
 public:
-    /**
-     * @brief Construct a default (empty) transaction.
-     */
-    Transaction()
-        : value_(0)
+    // Default constructor
+    Transaction() = default;
+
+    // Sets the type of the transaction (e.g. "document_submission", "removal_request")
+    void SetType(const std::string &type)
     {
+        m_type = type;
     }
 
-    /**
-     * @brief Construct a transaction with basic parameters.
-     * @param from The sender's address/key ID.
-     * @param to The recipient's address/key ID.
-     * @param val The token amount being transferred (0 if none).
-     * @param ipfsCids The IPFS references (CIDs) for pinned data.
-     */
-    Transaction(std::string from,
-                std::string to,
-                uint64_t val,
-                std::vector<std::string> ipfsCids)
-        : fromAddress_(std::move(from))
-        , toAddress_(std::move(to))
-        , value_(val)
-        , cids_(std::move(ipfsCids))
+    // Returns the transaction type
+    const std::string& GetType() const
     {
+        return m_type;
     }
 
-    /**
-     * @brief Returns the sender address.
-     */
-    inline const std::string& getFromAddress() const
+    // Sets the signature (DER-encoded ECDSA)
+    void SetSignature(const std::vector<uint8_t> &signature)
     {
-        return fromAddress_;
+        m_signature = signature;
     }
 
-    /**
-     * @brief Returns the recipient address.
-     */
-    inline const std::string& getToAddress() const
+    // Returns the signature
+    const std::vector<uint8_t>& GetSignature() const
     {
-        return toAddress_;
+        return m_signature;
     }
 
-    /**
-     * @brief Returns the token value being transferred.
-     */
-    inline uint64_t getValue() const
+    // Sets JSON-formatted metadata
+    void SetMetadata(const std::string &metadata)
     {
-        return value_;
+        m_metadata = metadata;
     }
 
-    /**
-     * @brief Returns the list of IPFS CIDs associated with this transaction.
-     */
-    inline const std::vector<std::string>& getCids() const
+    // Returns the metadata
+    const std::string& GetMetadata() const
     {
-        return cids_;
+        return m_metadata;
     }
 
-    /**
-     * @brief Returns an optional signature field if the transaction is signed.
-     */
-    inline const std::string& getSignature() const
+    // Sets the binary payload
+    void SetPayload(const std::vector<uint8_t> &data)
     {
-        return signature_;
+        m_payload = data;
     }
 
-    /**
-     * @brief Allows setting a signature after constructing the transaction.
-     * @param sig The signature string (hex, base64, etc.).
-     */
-    inline void setSignature(const std::string& sig)
+    // Returns the binary payload
+    const std::vector<uint8_t>& GetPayload() const
     {
-        signature_ = sig;
+        return m_payload;
     }
 
-    /**
-     * @brief Minimal validation checks (e.g., does it have valid addresses, is the amount non-negative).
-     * @throw std::runtime_error if validation fails.
-     */
-    inline void validateTransaction() const
+    /*
+      VerifySignature:
+        - Uses EVP interface to verify an ECDSA signature over SHA-256(payload).
+        - Expects publicKey: uncompressed secp256k1 (65 bytes: 0x04 + X(32) + Y(32)).
+        - The signature is m_signature (DER-encoded ECDSA).
+        - Returns true if valid; false otherwise.
+    */
+    bool VerifySignature(const std::vector<uint8_t> &publicKey) const
     {
-        if (fromAddress_.empty()) {
-            throw std::runtime_error("Transaction validation failed: fromAddress is empty.");
+        // Sanity checks
+        if (publicKey.size() != 65 || publicKey[0] != 0x04)
+        {
+            return false; // Not a valid uncompressed secp256k1 key
         }
-        // 'toAddress' could be empty if it's a burn or special purpose transaction, so optional check:
-        // if (toAddress_.empty()) {
-        //     throw std::runtime_error("Transaction validation failed: toAddress is empty.");
-        // }
-        if (value_ == 0 && cids_.empty()) {
-            // If there's no value and no IPFS references, this TX might be pointless
-            throw std::runtime_error("Transaction validation failed: zero value + no CIDs.");
+        if (m_signature.empty() || m_payload.empty())
+        {
+            return false; // No signature or nothing to verify
         }
-    }
 
-    /**
-     * @brief Computes a hash of the transaction fields (for signing or referencing).
-     * @return Hex-encoded SHA-256 of concatenated fields.
-     *
-     * In a production system, you'd carefully serialize in a canonical binary format.
-     */
-    inline std::string getTxHash() const
-    {
-        std::ostringstream oss;
-        oss << fromAddress_ << toAddress_ << value_;
-        for (auto &cid : cids_) {
-            oss << cid;
-        }
-        // Optionally, if there's a nonce/timestamp, include it
-        // oss << nonce_ or timestamp_;
-        // Do NOT include signature_ in the hash, since signature is computed over the hash
-
-        return rxrevoltchain::util::hashing::sha256(oss.str());
-    }
-
-    /**
-     * @brief (Optional) Sign the transaction with a private key (not implemented).
-     *        In real usage, you'd do ECDSA or Ed25519 signing here.
-     *
-     * @param privateKey A placeholder for the private key data.
-     */
-    inline void signTransaction(const std::string& privateKey)
-    {
-        // Pseudo-code: signature_ = ecdsa_sign(privateKey, getTxHash())
-        // For demonstration, we do a naive approach:
-        signature_ = "SIMULATED_SIGNATURE_OVER_" + getTxHash();
-        (void)privateKey; // just to suppress unused variable warnings
-    }
-
-    /**
-     * @brief (Optional) Verify the transaction signature with a public key (not implemented).
-     */
-    inline bool verifySignature(const std::string& publicKey) const
-    {
-        // Pseudo-code: ecdsa_verify(publicKey, signature_, getTxHash())
-        // We'll simulate success here:
-        (void)publicKey;
-        if (signature_.empty()) {
+        // Convert pubkey to an EVP_PKEY
+        EVP_PKEY* pkey = createEVPKeyFromPubkey(publicKey);
+        if (!pkey)
+        {
             return false;
         }
-        return true;
+
+        // Initialize context for verification
+        EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+        if (!ctx)
+        {
+            EVP_PKEY_free(pkey);
+            return false;
+        }
+
+        // Setup for ECDSA with SHA-256
+        if (EVP_DigestVerifyInit(ctx, nullptr, EVP_sha256(), nullptr, pkey) != 1)
+        {
+            EVP_MD_CTX_free(ctx);
+            EVP_PKEY_free(pkey);
+            return false;
+        }
+
+        // Feed in our payload
+        if (EVP_DigestVerifyUpdate(ctx, m_payload.data(), m_payload.size()) != 1)
+        {
+            EVP_MD_CTX_free(ctx);
+            EVP_PKEY_free(pkey);
+            return false;
+        }
+
+        // Final verification step: compare signature
+        int rc = EVP_DigestVerifyFinal(ctx, m_signature.data(), m_signature.size());
+
+        // Clean up
+        EVP_MD_CTX_free(ctx);
+        EVP_PKEY_free(pkey);
+
+        // rc == 1 => success
+        return (rc == 1);
     }
 
 private:
-    std::string fromAddress_;
-    std::string toAddress_;
-    uint64_t value_;                      ///< Amount of tokens transferred
-    std::vector<std::string> cids_;       ///< IPFS references for pinned data
-    std::string signature_;               ///< Optional signature
+    /*
+      createEVPKeyFromPubkey:
+        - Creates an EVP_PKEY* from a 65-byte uncompressed secp256k1 public key.
+        - We skip the first byte (0x04) and pass the remaining 64 bytes to
+          EVP_PKEY_new_raw_public_key(EVP_PKEY_EC, ...).
+    */
+    static EVP_PKEY* createEVPKeyFromPubkey(const std::vector<uint8_t> &pubKeyUncompressed)
+    {
+        // Expect [0x04][X(32 bytes)][Y(32 bytes)] => 65 bytes total
+        if (pubKeyUncompressed.size() != 65 || pubKeyUncompressed[0] != 0x04)
+        {
+            return nullptr;
+        }
+
+        // The "raw" portion is X+Y = 64 bytes
+        const unsigned char* rawXY = pubKeyUncompressed.data() + 1;
+        size_t rawLen = 64;
+
+        EVP_PKEY* pkey = EVP_PKEY_new_raw_public_key(EVP_PKEY_EC, /*engine=*/nullptr,
+                                                     rawXY, rawLen);
+        if (!pkey)
+        {
+            return nullptr;
+        }
+
+        return pkey;
+    }
+
+private:
+    std::string           m_type;
+    std::string           m_metadata;
+    std::vector<uint8_t>  m_signature;
+    std::vector<uint8_t>  m_payload;
 };
 
 } // namespace core
 } // namespace rxrevoltchain
 
-#endif // RXREVOLTCHAIN_CORE_TRANSACTION_HPP
+#endif // RXREVOLTCHAIN_TRANSACTION_HPP

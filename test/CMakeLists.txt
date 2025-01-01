@@ -45,24 +45,35 @@ if(NOT CURL_FOUND)
   message(FATAL_ERROR "CURL is required but not found.")
 endif()
 
+# 5. SQLite3 (for local storage)
+find_package(SQLite3 REQUIRED)
+if(NOT SQLite3_FOUND)
+  message(FATAL_ERROR "SQLite3 is required but not found.")
+endif()
+
+# 6. GoogleTest (for unit tests)
+find_package(GTest REQUIRED)
+if(NOT GTest_FOUND)
+  message(FATAL_ERROR "GoogleTest is required but not found.")
+endif()
+
 include_directories(
     ${CMAKE_CURRENT_LIST_DIR}/..
     ${CMAKE_CURRENT_LIST_DIR}/../config
     ${CMAKE_CURRENT_LIST_DIR}/../src
     ${CMAKE_CURRENT_LIST_DIR}/../src/consensus
     ${CMAKE_CURRENT_LIST_DIR}/../src/core
-    ${CMAKE_CURRENT_LIST_DIR}/../src/governance
-    ${CMAKE_CURRENT_LIST_DIR}/../src/ipfs_integration
-    ${CMAKE_CURRENT_LIST_DIR}/../src/miner
     ${CMAKE_CURRENT_LIST_DIR}/../src/network
-    ${CMAKE_CURRENT_LIST_DIR}/../src/service
+    ${CMAKE_CURRENT_LIST_DIR}/../src/ipfs_integration
+    ${CMAKE_CURRENT_LIST_DIR}/../src/pinner
     ${CMAKE_CURRENT_LIST_DIR}/../src/util
-    ${CMAKE_CURRENT_LIST_DIR}/../src/validation_queue
     ${CMAKE_CURRENT_LIST_DIR}/integration
     ${CMAKE_CURRENT_LIST_DIR}/unit
     ${CURL_INCLUDE_DIRS}
     ${OPENSSL_INCLUDE_DIRS}
     ${ZLIB_INCLUDE_DIRS}
+    ${SQLite3_INCLUDE_DIRS}
+    ${GTEST_INCLUDE_DIRS}
 )
 
 # Now define our single test executable:
@@ -77,6 +88,8 @@ target_link_libraries(rxrevoltchain_tests
     ZLIB::ZLIB
     Threads::Threads
     CURL::libcurl
+    SQLite::SQLite3
+    GTest::GTest
 )
 
 # Force the linker language to CXX, ensuring no "Cannot determine link language" error:
