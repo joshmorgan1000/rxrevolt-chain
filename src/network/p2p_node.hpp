@@ -5,6 +5,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <cstring>
+#include <functional>
 #include <map>
 #include <mutex>
 #include <stdexcept>
@@ -73,6 +74,16 @@ class P2PNode {
 
     // Clean up if needed
     ~P2PNode() { StopNetwork(); }
+
+    /**
+     * Set a callback that will be invoked whenever a message is received from
+     * any peer.
+     * @param cb Callback taking a const ProtocolMessage&.
+     */
+    void SetMessageCallback(std::function<void(const ProtocolMessage&)> cb) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_messageCallback = std::move(cb);
+    }
 
     /*
       bool StartNetwork(const std::string &bindAddress, uint16_t port)
@@ -230,6 +241,49 @@ class P2PNode {
         return true;
     }
 
+    /**
+     * Connect to a remote peer and start a receive thread if successful.
+     * @param address IP address string of the peer
+     * @param port Remote port
+     * @return true on success
+     */
+    bool ConnectToPeer(const std::string& address, uint16_t port) {
+        using namespace rxrevoltchain::util::logger;
+        std::lock_guard<std::mutex> lock(m_mutex);
+
+        if (!m_isRunning) {
+            Logger::getInstance().warn("[P2PNode] ConnectToPeer called but node not running.");
+            return false;
+        }
+
+        int sock = ::socket(AF_INET, SOCK_STREAM, 0);
+        if (sock < 0) {
+            Logger::getInstance().error("[P2PNode] Failed to create outbound socket.");
+            return false;
+        }
+
+        sockaddr_in addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(port);
+        addr.sin_addr.s_addr = inet_addr(address.c_str());
+
+        if (::connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+            Logger::getInstance().error("[P2PNode] Failed to connect to peer " + address + ":" +
+                                        std::to_string(port));
+            closesocket(sock);
+            return false;
+        }
+
+        std::string addrStr = address + ":" + std::to_string(port);
+        m_peers.push_back(Peer{sock, addrStr});
+        m_peers.back().recvThread = std::thread(&P2PNode::peerReceiveRoutine, this,
+                                                m_peers.back().sock, m_peers.back().address);
+
+        Logger::getInstance().info("[P2PNode] Connected to peer " + addrStr);
+        return true;
+    }
+
     /*
     void OnMessageReceived(const ProtocolMessage &msg)
     -----------------------------------------------------------------
@@ -269,6 +323,11 @@ class P2PNode {
 
         // Store the message for further processing
         messages.push_back(msg);
+
+        // Invoke external callback if set
+        if (m_messageCallback) {
+            m_messageCallback(msg);
+        }
     }
 
     /**
@@ -421,6 +480,9 @@ class P2PNode {
     std::atomic<bool> m_isRunning;
     int m_listenSocket;
     std::thread m_acceptThread;
+
+    // Optional callback invoked when a message is received
+    std::function<void(const ProtocolMessage&)> m_messageCallback;
 
     // Store the connected peers
     std::vector<Peer> m_peers;

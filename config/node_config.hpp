@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 /**
  * @file node_config.hpp
@@ -35,7 +36,7 @@ struct NodeConfig {
     NodeConfig()
         : p2pPort(30303), dataDirectory("./rxrevolt_data"), nodeName("rxrevolt_node"),
           maxConnections(64), ipfsEndpoint("http://127.0.0.1:5001"),
-          schedulerIntervalSeconds(86400) {}
+          schedulerIntervalSeconds(86400), bootstrapPeers() {}
 
     /// The TCP port to listen on for P2P connections (e.g., 30303).
     uint16_t p2pPort;
@@ -54,6 +55,9 @@ struct NodeConfig {
 
     /// Interval for the daily scheduler, in seconds.
     uint64_t schedulerIntervalSeconds;
+
+    /// Optional list of peer addresses (ip:port) to connect to on startup.
+    std::vector<std::string> bootstrapPeers;
 };
 
 } // namespace config

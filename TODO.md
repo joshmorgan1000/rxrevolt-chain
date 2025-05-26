@@ -1,8 +1,5 @@
 #TODO
 
-3. **Connect P2P networking**
-   - Start a `P2PNode` inside `PinnerNode` and implement peer discovery.
-   - Broadcast snapshot announcements and handle PoP request/response messages.
 
 4. **Finalize Proof‑of‑Pinning logic**
    - Generate Merkle based proofs with `MerkleProof` and validate them in `PoPConsensus`.
