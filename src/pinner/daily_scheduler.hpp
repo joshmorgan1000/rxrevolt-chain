@@ -7,6 +7,7 @@
 #include "logger.hpp"
 #include "pinned_state.hpp"
 #include "pop_consensus.hpp"
+#include "privacy_manager.hpp"
 #include "reward_scheduler.hpp"
 #include "snapshot_validation.hpp"
 #include <atomic>
@@ -143,9 +144,9 @@ class DailyScheduler {
         snapshot.SetDocumentQueue(&g_docQueue);
         snapshot.SetIPFSEndpoint(m_ipfsEndpoint);
 
-        // Potentially add a PrivacyManager if needed
-        // e.g., static PrivacyManager g_privacy;
-        // snapshot.SetPrivacyManager(&g_privacy);
+        // Integrate a PrivacyManager so PII is stripped automatically
+        static rxrevoltchain::core::PrivacyManager g_privacy;
+        snapshot.SetPrivacyManager(&g_privacy);
 
         // Do the actual merge
         logger.info("[DailyScheduler] Starting MergePendingDocuments()");
