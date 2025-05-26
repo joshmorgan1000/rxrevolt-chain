@@ -1,5 +1,4 @@
-# TODO
-
+#TODO
 
 3. **Connect P2P networking**
    - Start a `P2PNode` inside `PinnerNode` and implement peer discovery.
@@ -10,9 +9,6 @@
    - Track challenge history and store passing nodes for reward calculation.
 
 
-6. **Add privacy and removal features**
-   - Integrate `PrivacyManager` into `DailySnapshot` for automatic PII stripping.
-   - Provide user‑initiated removal transactions and enforce them during merges.
 
 7. **Governance modules**
    - Hook up `ContentModeration` and `UpgradeManager` through a `ServiceManager` or RPC interface.
@@ -33,4 +29,3 @@
 11. **Comprehensive test suite**
     - Expand GoogleTest coverage for each module (IPFSPinner, P2P networking, PoP flows, etc.).
     - Provide integration tests that simulate multiple nodes and reward distribution.
-
