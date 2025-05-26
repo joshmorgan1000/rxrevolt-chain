@@ -273,4 +273,41 @@ TEST(PoPConsensusTest, MerkleProofFlow) {
     std::remove(file.c_str());
 }
 
+TEST(ServiceManagerTest, ContentModerationFlow) {
+    rxrevoltchain::network::ServiceManager svc;
+    rxrevoltchain::pinner::ContentModeration mod;
+    svc.RegisterContentModeration(&mod);
+
+    auto toVec = [](const std::string& s) { return std::vector<uint8_t>(s.begin(), s.end()); };
+
+    auto resp = svc.HandleRequest({"ProposeContentRemoval", toVec("cid1:bad")});
+    EXPECT_TRUE(resp.success);
+
+    resp = svc.HandleRequest({"VoteOnContentRemoval", toVec("cid1:approve:node")});
+    EXPECT_TRUE(resp.success);
+
+    resp = svc.HandleRequest({"IsRemovalApproved", toVec("cid1")});
+    EXPECT_TRUE(resp.success);
+}
+
+TEST(ServiceManagerTest, UpgradeActivationFlow) {
+    rxrevoltchain::network::ServiceManager svc;
+    rxrevoltchain::network::UpgradeManager up;
+    svc.RegisterUpgradeManager(&up);
+
+    auto toVec = [](const std::string& s) { return std::vector<uint8_t>(s.begin(), s.end()); };
+
+    auto resp = svc.HandleRequest({"ProposeUpgrade", toVec("u1:desc")});
+    EXPECT_TRUE(resp.success);
+
+    resp = svc.HandleRequest({"VoteOnUpgrade", toVec("u1:approve:node")});
+    EXPECT_TRUE(resp.success);
+
+    resp = svc.HandleRequest({"IsUpgradeActivated", toVec("u1")});
+    EXPECT_TRUE(resp.success);
+
+    resp = svc.HandleRequest({"ApplyUpgrade", toVec("u1")});
+    EXPECT_TRUE(resp.success);
+}
+
 } // anonymous namespace
