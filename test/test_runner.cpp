@@ -346,6 +346,39 @@ TEST(RewardSchedulerTest, StreakPenalty) {
     EXPECT_EQ(rs.GetNodeStreak("node1"), (uint64_t)1);
 }
 
+// Integration test that exercises PoP consensus with the reward scheduler.
+// Two nodes respond to a challenge and rewards are split between them.
+TEST(IntegrationTest, MultiNodeRewardDistribution) {
+    const std::string file = "reward_integ.txt";
+    {
+        std::ofstream ofs(file);
+        ofs << "data";
+    }
+
+    rxrevoltchain::consensus::PoPConsensus pop;
+    pop.IssueChallenges("cidXYZ", file);
+    auto offsets = pop.GetCurrentOffsets();
+    rxrevoltchain::ipfs_integration::MerkleProof mp;
+    auto proofA = mp.GenerateProof(file, offsets);
+    auto proofB = mp.GenerateProof(file, offsets);
+    pop.CollectResponse("nodeA", proofA);
+    pop.CollectResponse("nodeB", proofB);
+
+    ASSERT_TRUE(pop.ValidateResponses());
+    auto passing = pop.GetPassingNodes();
+    ASSERT_EQ(passing.size(), (size_t)2);
+
+    rxrevoltchain::consensus::RewardScheduler sched;
+    sched.SetBaseDailyReward(100);
+    sched.RecordPassingNodes(passing);
+    ASSERT_TRUE(sched.DistributeRewards());
+
+    EXPECT_EQ(sched.GetBalance("nodeA"), (uint64_t)50);
+    EXPECT_EQ(sched.GetBalance("nodeB"), (uint64_t)50);
+
+    std::remove(file.c_str());
+}
+
 TEST(EHRConnectorTest, SubmitFailsWithoutEndpoint) {
     rxrevoltchain::connectors::EHRConnector conn("http://localhost:9999/api");
     // Endpoint likely not running; expect failure but function should execute
