@@ -28,6 +28,7 @@ int main(int argc, char** argv) {
 // Include references to the classes under test.
 // Adjust paths or namespaces as needed if they've changed.
 #include "config/node_config.hpp"
+#include "connectors/ehr_connector.hpp"
 #include "core/daily_snapshot.hpp"
 #include "core/document_queue.hpp"
 #include "core/privacy_manager.hpp"
@@ -343,6 +344,12 @@ TEST(RewardSchedulerTest, StreakPenalty) {
 
     rs.RecordPassingNodes({"node1"});
     EXPECT_EQ(rs.GetNodeStreak("node1"), (uint64_t)1);
+}
+
+TEST(EHRConnectorTest, SubmitFailsWithoutEndpoint) {
+    rxrevoltchain::connectors::EHRConnector conn("http://localhost:9999/api");
+    // Endpoint likely not running; expect failure but function should execute
+    EXPECT_FALSE(conn.SubmitCostData("{}"));
 }
 
 } // anonymous namespace
