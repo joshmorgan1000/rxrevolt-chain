@@ -4,6 +4,8 @@ Please see the `README.md` and `docs/WHITEPAPER.md` for more information about t
 
 ## Development
 
+* If unit tests are failing before any changes are made, attempt to fix the unit tests
+  first and disregard any other task assigments.
 * All code is formatted with `clang-format` using `.clang-format` in the repo root.
 * Builds rely on CMake and GoogleTest. Use `scripts/run-tests.sh` to configure,
   build and run the unit tests. Pass `Debug` or `Release` to choose the build
