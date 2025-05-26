@@ -331,4 +331,18 @@ TEST(HttpQueryServerTest, DocumentCount) {
     std::remove(db.c_str());
 }
 
+TEST(RewardSchedulerTest, StreakPenalty) {
+    rxrevoltchain::consensus::RewardScheduler rs;
+    rs.SetBaseDailyReward(100);
+
+    rs.RecordPassingNodes({"node1"});
+    EXPECT_EQ(rs.GetNodeStreak("node1"), (uint64_t)1);
+
+    rs.RecordPassingNodes({});
+    EXPECT_EQ(rs.GetNodeStreak("node1"), (uint64_t)0);
+
+    rs.RecordPassingNodes({"node1"});
+    EXPECT_EQ(rs.GetNodeStreak("node1"), (uint64_t)1);
+}
+
 } // anonymous namespace
