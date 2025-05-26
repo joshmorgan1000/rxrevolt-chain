@@ -84,6 +84,7 @@ include_directories(
 
 add_executable(rxrevolt-chain
     ${MAIN_SOURCE}
+    ${RXREVOLTCHAIN_SOURCES}
 )
 
 # ------------------------------------------------------------------------------

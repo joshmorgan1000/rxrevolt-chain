@@ -32,6 +32,7 @@ int main(int argc, char** argv) {
 #include "core/document_queue.hpp"
 #include "core/privacy_manager.hpp"
 #include "core/transaction.hpp"
+#include "network/http_query_server.hpp"
 #include "network/p2p_node.hpp"
 #include "network/protocol_messages.hpp"
 #include "pinner/daily_scheduler.hpp"
@@ -308,6 +309,26 @@ TEST(ServiceManagerTest, UpgradeActivationFlow) {
 
     resp = svc.HandleRequest({"ApplyUpgrade", toVec("u1")});
     EXPECT_TRUE(resp.success);
+}
+
+TEST(HttpQueryServerTest, DocumentCount) {
+    const std::string db = "query_test.sqlite";
+    std::remove(db.c_str());
+
+    sqlite3* h = nullptr;
+    ASSERT_EQ(sqlite3_open(db.c_str(), &h), SQLITE_OK);
+    const char* ddl = "CREATE TABLE documents (id INTEGER PRIMARY KEY AUTOINCREMENT, metadata "
+                      "TEXT, payload BLOB);";
+    ASSERT_EQ(sqlite3_exec(h, ddl, nullptr, nullptr, nullptr), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(h, "INSERT INTO documents (metadata, payload) VALUES ('m','x');",
+                           nullptr, nullptr, nullptr),
+              SQLITE_OK);
+    sqlite3_close(h);
+
+    int count = rxrevoltchain::network::HttpQueryServer::GetDocumentCount(db);
+    EXPECT_EQ(count, 1);
+
+    std::remove(db.c_str());
 }
 
 } // anonymous namespace
