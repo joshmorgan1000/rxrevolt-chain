@@ -201,8 +201,10 @@ class DailyScheduler {
             return;
         }
 
+        const std::string filePath = g_pinnedState.GetLocalFilePath();
+
         logger.info("[DailyScheduler] Issuing PoP challenges for CID: " + cidForPoP);
-        g_consensus.IssueChallenges(cidForPoP);
+        g_consensus.IssueChallenges(cidForPoP, filePath);
 
         // Ensure reward scheduler uses persistent storage
         g_rewardScheduler.SetStorageFile(m_dataDirectory + "/rewards.dat");

@@ -1,16 +1,19 @@
 #ifndef RXREVOLTCHAIN_POP_CONSENSUS_HPP
 #define RXREVOLTCHAIN_POP_CONSENSUS_HPP
 
+#include "hashing.hpp"
+#include "ipfs_integration/merkle_proof.hpp"
+#include "logger.hpp"
+#include "pinner/proof_generator.hpp"
+#include <chrono>
+#include <filesystem>
+#include <mutex>
+#include <random>
+#include <stdexcept>
 #include <string>
-#include <vector>
 #include <unordered_map>
 #include <unordered_set>
-#include <random>
-#include <mutex>
-#include <chrono>
-#include <stdexcept>
-#include "logger.hpp"
-#include "hashing.hpp"
+#include <vector>
 
 namespace rxrevoltchain {
 namespace consensus {
@@ -30,46 +33,67 @@ namespace consensus {
 
   "Fully functional" approach:
   - Maintains ephemeral challenges keyed by nodeID or globally.
-  - After "IssueChallenges" is called for the pinned DB identified by 'cid', 
-    nodes respond (via "CollectResponse") with data that is supposed to match 
+  - After "IssueChallenges" is called for the pinned DB identified by 'cid',
+    nodes respond (via "CollectResponse") with data that is supposed to match
     the challenge (e.g., chunk data, merkle proof, random seeds).
-  - "ValidateResponses" checks each response against the challenge. If correct, 
+  - "ValidateResponses" checks each response against the challenge. If correct,
     node is marked as having passed. If not, it's excluded.
-  - "GetPassingNodes" returns the set of nodes that correctly responded during 
+  - "GetPassingNodes" returns the set of nodes that correctly responded during
     the current challenge round.
 
   Implementation details:
-  - For demonstration, we store a random challenge (a string or hash) in 
-    m_currentChallenge, and expect each node’s response to match that value 
-    (or a derived hash). In a real system, you'd integrate file chunk checks, 
-    merkle proofs, etc.
+  - Challenges consist of random offsets within the pinned file. Nodes must
+    provide Merkle proofs for those offsets matching the expected Merkle root.
   - We keep a map of node -> response to check them in ValidateResponses().
-  - Once validated, passing nodes go into a separate set or map for the current 
+  - Once validated, passing nodes go into a separate set or map for the current
     round, retrievable by GetPassingNodes().
   - Thread-safety ensured via a mutex to protect shared state.
 */
 
-class PoPConsensus
-{
-public:
+class PoPConsensus {
+  public:
+    struct ChallengeRecord {
+        std::string cid;
+        std::string merkleRoot;
+        std::vector<std::string> passingNodes;
+        std::chrono::system_clock::time_point timestamp;
+    };
     // Default constructor
-    PoPConsensus()
-    {
-    }
+    PoPConsensus() {}
 
-    // Creates random chunk or offset requests for the pinned DB identified by cid.
-    // For demo, we simply store a random ephemeral "challenge hash" in m_currentChallenge.
-    void IssueChallenges(const std::string &cid)
-    {
+    // Creates random chunk requests for the pinned DB identified by cid.
+    // Offsets are used to build a Merkle proof challenge based on filePath.
+    void IssueChallenges(const std::string& cid, const std::string& filePath) {
         std::lock_guard<std::mutex> lock(m_mutex);
 
         // Log the new challenge issuance
         rxrevoltchain::util::logger::Logger::getInstance().info(
             "[PoPConsensus] Issuing challenges for CID: " + cid);
 
-        // Generate a random ephemeral seed
-        // In real usage, you'd pick specific offsets/chunks in the pinned DB.
-        m_currentChallenge = generateRandomChallenge();
+        m_currentFilePath = filePath;
+
+        size_t fileSize = 0;
+        try {
+            fileSize = std::filesystem::file_size(filePath);
+        } catch (const std::exception&) {
+            rxrevoltchain::util::logger::Logger::getInstance().error(
+                "[PoPConsensus] Failed to stat file for challenges: " + filePath);
+            return;
+        }
+
+        // Pick random offsets
+        rxrevoltchain::pinner::ProofGenerator generator;
+        m_offsets = generator.GenerateRandomOffsets(fileSize, 3);
+
+        // Generate local proof to obtain the root for comparison
+        rxrevoltchain::ipfs_integration::MerkleProof mp;
+        std::vector<uint8_t> proof = mp.GenerateProof(filePath, m_offsets);
+        if (proof.empty()) {
+            rxrevoltchain::util::logger::Logger::getInstance().error(
+                "[PoPConsensus] Failed to generate local Merkle proof.");
+            return;
+        }
+        m_currentChallengeRoot = extractRootFromProof(proof);
 
         // Clear any old data
         m_challengeNodeResponses.clear();
@@ -78,14 +102,13 @@ public:
         // Store the current pinned CID if needed for further reference
         m_lastCID = cid;
 
-        rxrevoltchain::util::logger::Logger::getInstance().info(
-            "[PoPConsensus] New ephemeral challenge: " + m_currentChallenge);
+        rxrevoltchain::util::logger::Logger::getInstance().info("[PoPConsensus] Challenge root: " +
+                                                                m_currentChallengeRoot);
     }
 
-    // Accepts a chunk response from a node. In reality, this would be 
+    // Accepts a chunk response from a node. In reality, this would be
     // the chunk data or merkle proof for random offsets within the pinned DB.
-    void CollectResponse(const std::string &nodeID, const std::vector<uint8_t> &data)
-    {
+    void CollectResponse(const std::string& nodeID, const std::vector<uint8_t>& data) {
         std::lock_guard<std::mutex> lock(m_mutex);
 
         // Store the raw response from this node
@@ -97,38 +120,30 @@ public:
     }
 
     // Runs all checks to confirm which nodes proved possession; returns true if all is valid.
-    // For demonstration, we treat any node whose response data (SHA-256) matches 
+    // For demonstration, we treat any node whose response data (SHA-256) matches
     // the ephemeral challenge's SHA-256 as valid.
-    bool ValidateResponses()
-    {
+    bool ValidateResponses() {
         std::lock_guard<std::mutex> lock(m_mutex);
 
-        if (m_currentChallenge.empty())
-        {
+        if (m_currentChallengeRoot.empty()) {
             rxrevoltchain::util::logger::Logger::getInstance().error(
                 "[PoPConsensus] No current challenge to validate against.");
             return false;
         }
 
-        // Hash the ephemeral challenge to define the "expected" answer
-        std::vector<uint8_t> challengeBytes(m_currentChallenge.begin(), m_currentChallenge.end());
-        std::string challengeHash = rxrevoltchain::util::hashing::sha256(challengeBytes);
-
         // Clear any old passing nodes
         m_passingNodes.clear();
 
         // Evaluate each node's response
-        for (const auto &pair : m_challengeNodeResponses)
-        {
-            const std::string &nodeID = pair.first;
-            const std::vector<uint8_t> &response = pair.second;
-
-            // Hash the response data
-            std::string responseHash = rxrevoltchain::util::hashing::sha256(response);
-
-            if (responseHash == challengeHash)
-            {
-                // Node matched the ephemeral challenge
+        for (const auto& pair : m_challengeNodeResponses) {
+            const std::string& nodeID = pair.first;
+            const std::vector<uint8_t>& response = pair.second;
+            rxrevoltchain::ipfs_integration::MerkleProof mp;
+            if (!mp.VerifyProof(response)) {
+                continue;
+            }
+            std::string root = extractRootFromProof(response);
+            if (root == m_currentChallengeRoot) {
                 m_passingNodes.insert(nodeID);
             }
         }
@@ -140,57 +155,114 @@ public:
             "[PoPConsensus] ValidateResponses: " + std::to_string(m_passingNodes.size()) +
             " passing node(s). Any passed? " + (anyPassed ? "Yes" : "No"));
 
+        // record history
+        ChallengeRecord rec;
+        rec.cid = m_lastCID;
+        rec.merkleRoot = m_currentChallengeRoot;
+        rec.timestamp = std::chrono::system_clock::now();
+        for (const auto& n : m_passingNodes)
+            rec.passingNodes.push_back(n);
+        m_history.push_back(rec);
+        if (m_history.size() > m_historyLimit)
+            m_history.erase(m_history.begin());
+
         return anyPassed;
     }
 
     // Returns the list of node IDs that passed the PoP for this round
-    std::vector<std::string> GetPassingNodes() const
-    {
+    std::vector<std::string> GetPassingNodes() const {
         std::lock_guard<std::mutex> lock(m_mutex);
         std::vector<std::string> result;
         result.reserve(m_passingNodes.size());
-        for (const auto &node : m_passingNodes)
-        {
+        for (const auto& node : m_passingNodes) {
             result.push_back(node);
         }
         return result;
     }
 
-private:
-    // Generates a random ephemeral string to serve as the "challenge"
-    std::string generateRandomChallenge()
-    {
-        // Example: 16 random hex bytes
-        static const char hexDigits[] = "0123456789abcdef";
-        std::random_device rd;
-        std::mt19937 rng(rd());
-        std::uniform_int_distribution<int> dist(0, 15);
-
-        std::string challenge;
-        challenge.reserve(32); // 16 bytes * 2 hex chars each
-        for (int i = 0; i < 16; ++i)
-        {
-            challenge.push_back(hexDigits[dist(rng)]);
-            challenge.push_back(hexDigits[dist(rng)]);
-        }
-        return challenge;
+    /** Offsets used for the current challenge (for testing). */
+    std::vector<size_t> GetCurrentOffsets() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_offsets;
     }
 
-private:
-    mutable std::mutex                 m_mutex;
+    /** Retrieve stored challenge history. */
+    std::vector<ChallengeRecord> GetChallengeHistory() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_history;
+    }
 
-    // The ephemeral challenge we set for the current PoP round
-    std::string                        m_currentChallenge;
+  private:
+    // Helper to extract the merkle root from a proof blob
+    std::string extractRootFromProof(const std::vector<uint8_t>& proof) const {
+        size_t pos = 0;
+        auto readU32 = [&](uint32_t& val) -> bool {
+            if (pos + 4 > proof.size())
+                return false;
+            val = (static_cast<uint32_t>(proof[pos + 0]) << 24) |
+                  (static_cast<uint32_t>(proof[pos + 1]) << 16) |
+                  (static_cast<uint32_t>(proof[pos + 2]) << 8) |
+                  (static_cast<uint32_t>(proof[pos + 3]) << 0);
+            pos += 4;
+            return true;
+        };
+
+        uint32_t chunkSize = 0, totalChunks = 0, numOffsets = 0;
+        if (!readU32(chunkSize) || !readU32(totalChunks) || !readU32(numOffsets))
+            return {};
+
+        for (uint32_t i = 0; i < numOffsets; ++i) {
+            uint32_t idx = 0, len = 0, pathLen = 0;
+            if (!readU32(idx) || !readU32(len))
+                return {};
+            if (pos + len > proof.size())
+                return {};
+            pos += len;
+            if (!readU32(pathLen))
+                return {};
+            for (uint32_t p = 0; p < pathLen; ++p) {
+                uint32_t hlen = 0;
+                if (!readU32(hlen))
+                    return {};
+                if (pos + hlen > proof.size())
+                    return {};
+                pos += hlen;
+            }
+        }
+
+        uint32_t rootLen = 0;
+        if (!readU32(rootLen))
+            return {};
+        if (pos + rootLen > proof.size())
+            return {};
+        std::string root((const char*)&proof[pos], rootLen);
+        return root;
+    }
+
+  private:
+    mutable std::mutex m_mutex;
 
     // We store the pinned DB's CID (last used in IssueChallenges)
-    std::string                        m_lastCID;
+    std::string m_lastCID;
 
-    // Node responses for this ephemeral challenge
-    // nodeID -> raw data
+    // Local file path for current challenge
+    std::string m_currentFilePath;
+
+    // Random offsets for the challenge
+    std::vector<size_t> m_offsets;
+
+    // Expected Merkle root for the challenge
+    std::string m_currentChallengeRoot;
+
+    // Node responses for this challenge
     std::unordered_map<std::string, std::vector<uint8_t>> m_challengeNodeResponses;
 
     // The set of nodes that successfully validated
-    std::unordered_set<std::string>    m_passingNodes;
+    std::unordered_set<std::string> m_passingNodes;
+
+    // History of past challenges
+    std::vector<ChallengeRecord> m_history;
+    size_t m_historyLimit = 50;
 };
 
 } // namespace consensus

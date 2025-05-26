@@ -246,4 +246,31 @@ TEST(DailySnapshotTest, RemovalRequest) {
     std::remove(db.c_str());
 }
 
+TEST(PoPConsensusTest, MerkleProofFlow) {
+    const std::string file = "pop_test.txt";
+    {
+        std::ofstream ofs(file);
+        ofs << "Hello world from RxRevoltChain.";
+    }
+
+    rxrevoltchain::consensus::PoPConsensus pop;
+    pop.IssueChallenges("cid123", file);
+
+    auto offsets = pop.GetCurrentOffsets();
+    rxrevoltchain::ipfs_integration::MerkleProof mp;
+    auto proof = mp.GenerateProof(file, offsets);
+    pop.CollectResponse("node1", proof);
+
+    ASSERT_TRUE(pop.ValidateResponses());
+    auto passing = pop.GetPassingNodes();
+    ASSERT_EQ(passing.size(), (size_t)1);
+    EXPECT_EQ(passing[0], "node1");
+
+    auto history = pop.GetChallengeHistory();
+    ASSERT_EQ(history.size(), (size_t)1);
+    ASSERT_EQ(history[0].passingNodes.size(), (size_t)1);
+
+    std::remove(file.c_str());
+}
+
 } // anonymous namespace
