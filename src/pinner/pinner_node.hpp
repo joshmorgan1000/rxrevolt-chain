@@ -1,46 +1,43 @@
 #ifndef RXREVOLTCHAIN_PINNER_NODE_HPP
 #define RXREVOLTCHAIN_PINNER_NODE_HPP
 
-#include <string>
-#include <atomic>
-#include <thread>
-#include <mutex>
-#include <condition_variable>
-#include <chrono>
-#include <stdexcept>
-#include "transaction.hpp"
-#include "document_queue.hpp"
+#include "config/node_config.hpp"
 #include "daily_scheduler.hpp"
+#include "document_queue.hpp"
+#include "transaction.hpp"
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
+#include <stdexcept>
+#include <string>
+#include <thread>
 
 namespace rxrevoltchain {
 namespace pinner {
 
-class PinnerNode
-{
-public:
-    // Loads configuration from file, sets up internal modules
-    bool InitializeNode(const std::string &configFilePath)
-    {
+class PinnerNode {
+  public:
+    // Applies configuration to the node and its submodules
+    bool InitializeNode(const rxrevoltchain::config::NodeConfig& config) {
         std::lock_guard<std::mutex> lock(m_nodeMutex);
 
-        // In a real scenario, you'd parse 'configFilePath' here. For example:
-        //   if (!m_config.LoadConfig(configFilePath)) {
-        //       return false;
-        //   }
-        // Then apply relevant settings to scheduler or other subsystems.
-        //
-        // For now, we simply record that we're not running yet:
+        m_config = config;
+
+        // Apply scheduler interval and data directory/IPFS settings
+        m_scheduler.ConfigureInterval(std::chrono::seconds(m_config.schedulerIntervalSeconds));
+        m_scheduler.SetDataDirectory(m_config.dataDirectory);
+        m_scheduler.SetIPFSEndpoint(m_config.ipfsEndpoint);
+
         m_isNodeRunning = false;
         return true;
     }
 
     // Cleans up resources and stops any running threads/event loops
-    bool ShutdownNode()
-    {
+    bool ShutdownNode() {
         std::lock_guard<std::mutex> lock(m_nodeMutex);
 
-        if (m_isNodeRunning)
-        {
+        if (m_isNodeRunning) {
             StopEventLoop();
         }
         m_scheduler.StopScheduling();
@@ -48,12 +45,10 @@ public:
     }
 
     // Begins processing of incoming network events, scheduling tasks, etc. (dedicated thread).
-    void StartEventLoop()
-    {
+    void StartEventLoop() {
         std::lock_guard<std::mutex> lock(m_nodeMutex);
 
-        if (m_isNodeRunning)
-        {
+        if (m_isNodeRunning) {
             return; // Already running
         }
 
@@ -66,12 +61,10 @@ public:
     }
 
     // Gracefully stops the event loop
-    void StopEventLoop()
-    {
+    void StopEventLoop() {
         {
             std::lock_guard<std::mutex> lock(m_nodeMutex);
-            if (!m_isNodeRunning)
-            {
+            if (!m_isNodeRunning) {
                 return; // Not running
             }
             m_isNodeRunning = false;
@@ -81,8 +74,7 @@ public:
         m_nodeCV.notify_all();
 
         // Join the thread if it's joinable
-        if (m_eventLoopThread.joinable())
-        {
+        if (m_eventLoopThread.joinable()) {
             m_eventLoopThread.join();
         }
 
@@ -91,45 +83,35 @@ public:
     }
 
     // Called when a document submission transaction is received
-    void OnReceiveDocument(const rxrevoltchain::core::Transaction &docTx)
-    {
+    void OnReceiveDocument(const rxrevoltchain::core::Transaction& docTx) {
         // Add to the DocumentQueue
         m_docQueue.AddTransaction(docTx);
     }
 
     // Called when a removal transaction is received (also forwarded to DocumentQueue)
-    void OnReceiveRemovalRequest(const rxrevoltchain::core::Transaction &removeTx)
-    {
+    void OnReceiveRemovalRequest(const rxrevoltchain::core::Transaction& removeTx) {
         // Also add to the DocumentQueue
         m_docQueue.AddTransaction(removeTx);
     }
 
     // Returns a reference to the scheduler for fine-grained control, if needed
-    DailyScheduler& GetScheduler()
-    {
-        return m_scheduler;
-    }
+    DailyScheduler& GetScheduler() { return m_scheduler; }
 
-private:
+  private:
     // Internal routine representing the node's event loop
-    void eventLoopRoutine()
-    {
+    void eventLoopRoutine() {
         // Runs until m_isNodeRunning is false
-        while (true)
-        {
+        while (true) {
             {
                 std::unique_lock<std::mutex> lock(m_nodeMutex);
-                if (!m_isNodeRunning)
-                {
+                if (!m_isNodeRunning) {
                     break;
                 }
                 // Wait for a short duration or until we're told to stop
-                m_nodeCV.wait_for(lock, std::chrono::milliseconds(500), [this]() {
-                    return !m_isNodeRunning;
-                });
+                m_nodeCV.wait_for(lock, std::chrono::milliseconds(500),
+                                  [this]() { return !m_isNodeRunning; });
 
-                if (!m_isNodeRunning)
-                {
+                if (!m_isNodeRunning) {
                     break;
                 }
             }
@@ -140,16 +122,17 @@ private:
         }
     }
 
-private:
+  private:
     // Thread-safety
-    std::mutex                         m_nodeMutex;
-    std::condition_variable            m_nodeCV;
-    std::atomic<bool>                  m_isNodeRunning{false};
-    std::thread                        m_eventLoopThread;
+    std::mutex m_nodeMutex;
+    std::condition_variable m_nodeCV;
+    std::atomic<bool> m_isNodeRunning{false};
+    std::thread m_eventLoopThread;
 
     // Core subsystems
     rxrevoltchain::core::DocumentQueue m_docQueue;
-    DailyScheduler          m_scheduler;
+    DailyScheduler m_scheduler;
+    rxrevoltchain::config::NodeConfig m_config;
 };
 
 } // namespace pinner
