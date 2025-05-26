@@ -1,16 +1,16 @@
 #include <iostream>
-#include <thread>
 #include <string>
+#include <thread>
 
-#include "util/config_parser.hpp"
-#include "util/logger.hpp"
 #include "core/document_queue.hpp"
 #include "core/transaction.hpp"
-#include "pinner/pinner_node.hpp"
+#include "network/p2p_node.hpp"
 #include "pinner/daily_scheduler.hpp"
+#include "pinner/pinner_node.hpp"
+#include "util/config_parser.hpp"
+#include "util/logger.hpp"
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
     // Set up logger level
     rxrevoltchain::util::logger::Logger::getInstance().setLogLevel(
         rxrevoltchain::util::logger::LogLevel::INFO);
@@ -24,35 +24,41 @@ int main(int argc, char** argv)
 
     // Default config path if none provided
     std::string configPath = "rxrevolt_node.conf";
-    if (argc > 1)
-    {
+    if (argc > 1) {
         configPath = argv[1];
     }
-    rxrevoltchain::util::logger::Logger::getInstance().info(
-        "[main] Loading config from: " + configPath);
+    rxrevoltchain::util::logger::Logger::getInstance().info("[main] Loading config from: " +
+                                                            configPath);
 
     // Actually load the config file
     configParser.loadFromFile(configPath);
 
-    // 2. Instantiate the PinnerNode
+    // 2. Instantiate the PinnerNode with parsed config
     rxrevoltchain::pinner::PinnerNode pinnerNode;
-    if (!pinnerNode.InitializeNode(configPath))
-    {
+    if (!pinnerNode.InitializeNode(nodeConfig)) {
         rxrevoltchain::util::logger::Logger::getInstance().error(
-            "[main] Failed to initialize PinnerNode with config: " + configPath);
+            "[main] Failed to initialize PinnerNode");
         return 1; // exit on error
+    }
+
+    // Start P2P networking using the configured port
+    rxrevoltchain::network::P2PNode p2pNode;
+    if (!p2pNode.StartNetwork("0.0.0.0", nodeConfig.p2pPort)) {
+        rxrevoltchain::util::logger::Logger::getInstance().error(
+            "[main] Failed to start P2PNode on port " + std::to_string(nodeConfig.p2pPort));
     }
 
     // 3. Start the node’s event loop
     pinnerNode.StartEventLoop();
 
     // 4. Get the daily scheduler from the node
-    rxrevoltchain::pinner::DailyScheduler &scheduler = pinnerNode.GetScheduler();
+    rxrevoltchain::pinner::DailyScheduler& scheduler = pinnerNode.GetScheduler();
 
-    // Configure for demonstration
-    scheduler.ConfigureInterval(std::chrono::seconds(5)); // short interval for demo
-    if (!scheduler.StartScheduling())
-    {
+    // Configure scheduler using the node configuration
+    scheduler.ConfigureInterval(std::chrono::seconds(nodeConfig.schedulerIntervalSeconds));
+    scheduler.SetDataDirectory(nodeConfig.dataDirectory);
+    scheduler.SetIPFSEndpoint(nodeConfig.ipfsEndpoint);
+    if (!scheduler.StartScheduling()) {
         rxrevoltchain::util::logger::Logger::getInstance().warn(
             "[main] DailyScheduler did not start successfully.");
     }
@@ -80,13 +86,15 @@ int main(int argc, char** argv)
     std::this_thread::sleep_for(std::chrono::seconds(3));
 
     // 6. Stop the node event loop
-    rxrevoltchain::util::logger::Logger::getInstance().info(
-        "[main] Stopping node event loop.");
+    rxrevoltchain::util::logger::Logger::getInstance().info("[main] Stopping node event loop.");
     pinnerNode.StopEventLoop();
     pinnerNode.ShutdownNode();
 
     // 7. Stop the scheduler
     scheduler.StopScheduling();
+
+    // Stop P2P networking
+    p2pNode.StopNetwork();
 
     rxrevoltchain::util::logger::Logger::getInstance().info(
         "[main] RxRevoltChain application exiting.");

@@ -1,17 +1,17 @@
 #ifndef RXREVOLTCHAIN_UTIL_CONFIG_PARSER_HPP
 #define RXREVOLTCHAIN_UTIL_CONFIG_PARSER_HPP
 
-#include <string>
-#include <fstream>
-#include <sstream>
-#include <stdexcept>
-#include <unordered_map>
-#include <cstdint>
+#include "logger.hpp"
+#include "node_config.hpp"
 #include <algorithm>
+#include <cstdint>
+#include <fstream>
 #include <locale>
 #include <mutex>
-#include "node_config.hpp"
-#include "logger.hpp"
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <unordered_map>
 
 /**
  * @file config_parser.hpp
@@ -20,7 +20,7 @@
  * DESIGN GOALS:
  *   - Read a simple "key=value" style configuration file.
  *   - Populate rxrevoltchain::config::NodeConfig fields (e.g., p2pPort, dataDirectory, etc.).
- *   - Provide get/set or apply logic for each recognized key. 
+ *   - Provide get/set or apply logic for each recognized key.
  *   - This is header-only and does not rely on external libraries (like JSON).
  *   - If the file has lines like: p2pPort=30303, we parse that into nodeConfig.p2pPort = 30303.
  *
@@ -48,25 +48,20 @@ namespace util {
  * @class ConfigParser
  * @brief Minimal parser that reads a plain text key=value config, updates NodeConfig fields.
  */
-class ConfigParser
-{
-public:
+class ConfigParser {
+  public:
     /**
      * @brief Construct a new ConfigParser object, referencing a NodeConfig to populate.
      * @param nodeConfig A reference to an existing NodeConfig struct.
      */
-    ConfigParser(rxrevoltchain::config::NodeConfig &nodeConfig)
-        : nodeConfig_(nodeConfig)
-    {
-    }
+    ConfigParser(rxrevoltchain::config::NodeConfig& nodeConfig) : nodeConfig_(nodeConfig) {}
 
     /**
      * @brief Read the given file, parse line by line, storing recognized keys in nodeConfig_.
      * @param filepath The path to the config file.
      * @throw std::runtime_error if file can't be opened or lines are malformed.
      */
-    inline void loadFromFile(const std::string &filepath)
-    {
+    inline void loadFromFile(const std::string& filepath) {
         std::lock_guard<std::mutex> lock(mutex_);
 
         std::ifstream inFile(filepath);
@@ -104,8 +99,8 @@ public:
         rxrevoltchain::util::logger::info("ConfigParser: Config loaded.");
     }
 
-private:
-    rxrevoltchain::config::NodeConfig &nodeConfig_;
+  private:
+    rxrevoltchain::config::NodeConfig& nodeConfig_;
     std::mutex mutex_;
 
     /**
@@ -113,8 +108,7 @@ private:
      * @param key The config key
      * @param val The config value
      */
-    inline void applyKeyValue(const std::string &key, const std::string &val)
-    {
+    inline void applyKeyValue(const std::string& key, const std::string& val) {
         // We'll map certain known keys to nodeConfig fields:
         // e.g. p2pPort -> nodeConfig_.p2pPort
         //      dataDirectory -> nodeConfig_.dataDirectory
@@ -122,37 +116,42 @@ private:
 
         if (key == "p2pPort") {
             nodeConfig_.p2pPort = parseUInt(val);
-            rxrevoltchain::util::logger::debug("ConfigParser: p2pPort set to " + std::to_string(nodeConfig_.p2pPort));
-        }
-        else if (key == "dataDirectory") {
+            rxrevoltchain::util::logger::debug("ConfigParser: p2pPort set to " +
+                                               std::to_string(nodeConfig_.p2pPort));
+        } else if (key == "dataDirectory") {
             nodeConfig_.dataDirectory = val;
             rxrevoltchain::util::logger::debug("ConfigParser: dataDirectory set to " + val);
-        }
-        else if (key == "nodeName") {
+        } else if (key == "nodeName") {
             nodeConfig_.nodeName = val;
             rxrevoltchain::util::logger::debug("ConfigParser: nodeName set to " + val);
-        }
-        else if (key == "maxConnections") {
+        } else if (key == "maxConnections") {
             nodeConfig_.maxConnections = parseUInt(val);
-            rxrevoltchain::util::logger::debug("ConfigParser: maxConnections set to " + std::to_string(nodeConfig_.maxConnections));
-        }
-        else {
-            rxrevoltchain::util::logger::warn("ConfigParser: Unrecognized key '" + key + "' with value '" + val + "'");
+            rxrevoltchain::util::logger::debug("ConfigParser: maxConnections set to " +
+                                               std::to_string(nodeConfig_.maxConnections));
+        } else if (key == "ipfsEndpoint") {
+            nodeConfig_.ipfsEndpoint = val;
+            rxrevoltchain::util::logger::debug("ConfigParser: ipfsEndpoint set to " + val);
+        } else if (key == "schedulerIntervalSeconds") {
+            nodeConfig_.schedulerIntervalSeconds = parseUInt(val);
+            rxrevoltchain::util::logger::debug(
+                "ConfigParser: schedulerIntervalSeconds set to " +
+                std::to_string(nodeConfig_.schedulerIntervalSeconds));
+        } else {
+            rxrevoltchain::util::logger::warn("ConfigParser: Unrecognized key '" + key +
+                                              "' with value '" + val + "'");
         }
     }
 
     /**
      * @brief Trim leading/trailing whitespace from a string.
      */
-    inline void trim(std::string &s)
-    {
+    inline void trim(std::string& s) {
         static const std::string whitespace = " \t\r\n";
         // left trim
         auto pos = s.find_first_not_of(whitespace);
         if (pos != std::string::npos) {
             s.erase(0, pos);
-        }
-        else {
+        } else {
             s.clear();
             return;
         }
@@ -168,8 +167,7 @@ private:
      * @param val The string to parse
      * @return The parsed uint64_t value
      */
-    inline uint64_t parseUInt(const std::string &val) const
-    {
+    inline uint64_t parseUInt(const std::string& val) const {
         try {
             size_t idx = 0;
             uint64_t n = std::stoull(val, &idx, 10);
@@ -177,9 +175,9 @@ private:
                 throw std::runtime_error("Non-numeric suffix");
             }
             return n;
-        }
-        catch (const std::exception &ex) {
-            throw std::runtime_error("ConfigParser: parseUInt failed on '" + val + "': " + ex.what());
+        } catch (const std::exception& ex) {
+            throw std::runtime_error("ConfigParser: parseUInt failed on '" + val +
+                                     "': " + ex.what());
         }
     }
 };

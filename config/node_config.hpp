@@ -1,8 +1,8 @@
 #ifndef RXREVOLTCHAIN_CONFIG_NODE_CONFIG_HPP
 #define RXREVOLTCHAIN_CONFIG_NODE_CONFIG_HPP
 
-#include <string>
 #include <cstdint>
+#include <string>
 
 /**
  * @file node_config.hpp
@@ -24,8 +24,7 @@ namespace config {
  *   - nodeName: A user-defined name or identifier for logs/peers.
  *   - maxConnections: A limit on how many inbound/outbound peers are allowed.
  */
-struct NodeConfig
-{
+struct NodeConfig {
     /**
      * @brief Construct a new NodeConfig with some defaults:
      *   p2pPort = 30303
@@ -34,12 +33,9 @@ struct NodeConfig
      *   maxConnections = 64
      */
     NodeConfig()
-        : p2pPort(30303),
-          dataDirectory("./rxrevolt_data"),
-          nodeName("rxrevolt_node"),
-          maxConnections(64)
-    {
-    }
+        : p2pPort(30303), dataDirectory("./rxrevolt_data"), nodeName("rxrevolt_node"),
+          maxConnections(64), ipfsEndpoint("http://127.0.0.1:5001"),
+          schedulerIntervalSeconds(86400) {}
 
     /// The TCP port to listen on for P2P connections (e.g., 30303).
     uint16_t p2pPort;
@@ -52,6 +48,12 @@ struct NodeConfig
 
     /// The maximum number of simultaneous peer connections.
     uint16_t maxConnections;
+
+    /// HTTP endpoint for the local IPFS daemon used when pinning snapshots.
+    std::string ipfsEndpoint;
+
+    /// Interval for the daily scheduler, in seconds.
+    uint64_t schedulerIntervalSeconds;
 };
 
 } // namespace config

@@ -1,8 +1,5 @@
 # TODO
 
-1. **Integrate NodeConfig across modules**
-   - Parse `rxrevolt_node.conf` in `main.cpp` and pass values to `PinnerNode`, `DailyScheduler` and `P2PNode`.
-   - Use config fields for data directory, IPFS endpoint, scheduler interval and network ports.
 
 2. **Complete daily merge pipeline**
    - Persist `DocumentQueue` to disk (virtual WAL) so data survives restarts.
