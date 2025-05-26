@@ -29,6 +29,10 @@ class PinnerNode {
         m_scheduler.SetDataDirectory(m_config.dataDirectory);
         m_scheduler.SetIPFSEndpoint(m_config.ipfsEndpoint);
 
+        // Configure persistent storage for the DocumentQueue
+        std::string queueFile = m_config.dataDirectory + "/document_queue.wal";
+        m_docQueue.SetStorageFile(queueFile);
+
         m_isNodeRunning = false;
         return true;
     }
