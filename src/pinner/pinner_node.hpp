@@ -6,6 +6,9 @@
 #include "document_queue.hpp"
 #include "network/p2p_node.hpp"
 #include "network/protocol_messages.hpp"
+#include "network/service_manager.hpp"
+#include "network/upgrade_manager.hpp"
+#include "pinner/content_moderation.hpp"
 #include "transaction.hpp"
 #include <atomic>
 #include <chrono>
@@ -34,6 +37,11 @@ class PinnerNode {
         // Configure persistent storage for the DocumentQueue
         std::string queueFile = m_config.dataDirectory + "/document_queue.wal";
         m_docQueue.SetStorageFile(queueFile);
+
+        // Register subsystems with the ServiceManager
+        m_serviceManager.RegisterDocumentQueue(&m_docQueue);
+        m_serviceManager.RegisterContentModeration(&m_contentModeration);
+        m_serviceManager.RegisterUpgradeManager(&m_upgradeManager);
 
         m_isNodeRunning = false;
         return true;
@@ -127,6 +135,9 @@ class PinnerNode {
     // Returns a reference to the scheduler for fine-grained control, if needed
     DailyScheduler& GetScheduler() { return m_scheduler; }
 
+    // Access to the ServiceManager for governance RPCs
+    rxrevoltchain::network::ServiceManager& GetServiceManager() { return m_serviceManager; }
+
     // Broadcast a snapshot announcement to peers
     void AnnounceSnapshot(const std::string& cid) {
         rxrevoltchain::network::ProtocolMessage msg;
@@ -181,6 +192,9 @@ class PinnerNode {
     DailyScheduler m_scheduler;
     rxrevoltchain::config::NodeConfig m_config;
     rxrevoltchain::network::P2PNode m_p2pNode;
+    rxrevoltchain::network::ServiceManager m_serviceManager;
+    rxrevoltchain::pinner::ContentModeration m_contentModeration;
+    rxrevoltchain::network::UpgradeManager m_upgradeManager;
 };
 
 } // namespace pinner

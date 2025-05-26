@@ -1,9 +1,5 @@
 #TODO
 
-7. **Governance modules**
-   - Hook up `ContentModeration` and `UpgradeManager` through a `ServiceManager` or RPC interface.
-   - Allow proposals, voting and upgrade activation according to the whitepaper rules.
-
 8. **Public query endpoints**
    - Build a read‑only HTTP or gRPC service exposing metrics and simple queries on the pinned database.
    - Document how non‑nodes can download snapshots from IPFS.
