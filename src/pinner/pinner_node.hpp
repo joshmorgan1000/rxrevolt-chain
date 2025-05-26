@@ -4,6 +4,8 @@
 #include "config/node_config.hpp"
 #include "daily_scheduler.hpp"
 #include "document_queue.hpp"
+#include "network/p2p_node.hpp"
+#include "network/protocol_messages.hpp"
 #include "transaction.hpp"
 #include <atomic>
 #include <chrono>
@@ -60,6 +62,27 @@ class PinnerNode {
         // Start scheduler (if not already started)
         m_scheduler.StartScheduling();
 
+        // Start P2P networking if enabled
+        if (m_config.p2pPort != 0) {
+            m_p2pNode.SetMessageCallback(
+                [this](const rxrevoltchain::network::ProtocolMessage& msg) {
+                    this->HandleP2PMessage(msg);
+                });
+            m_p2pNode.StartNetwork("0.0.0.0", m_config.p2pPort);
+
+            // Connect to configured peers for discovery
+            for (const auto& peer : m_config.bootstrapPeers) {
+                std::string addr = peer;
+                uint16_t port = m_config.p2pPort;
+                auto pos = peer.find(":");
+                if (pos != std::string::npos) {
+                    addr = peer.substr(0, pos);
+                    port = static_cast<uint16_t>(std::stoi(peer.substr(pos + 1)));
+                }
+                m_p2pNode.ConnectToPeer(addr, port);
+            }
+        }
+
         // Launch a dedicated thread to simulate an event loop for the node
         m_eventLoopThread = std::thread(&PinnerNode::eventLoopRoutine, this);
     }
@@ -84,6 +107,9 @@ class PinnerNode {
 
         // Optionally stop the scheduler here if you want it fully tied to the node's loop
         m_scheduler.StopScheduling();
+
+        // Stop networking
+        m_p2pNode.StopNetwork();
     }
 
     // Called when a document submission transaction is received
@@ -101,7 +127,24 @@ class PinnerNode {
     // Returns a reference to the scheduler for fine-grained control, if needed
     DailyScheduler& GetScheduler() { return m_scheduler; }
 
+    // Broadcast a snapshot announcement to peers
+    void AnnounceSnapshot(const std::string& cid) {
+        rxrevoltchain::network::ProtocolMessage msg;
+        msg.type = "SNAPSHOT_ANNOUNCE";
+        msg.payload.assign(cid.begin(), cid.end());
+        m_p2pNode.BroadcastMessage(msg);
+    }
+
   private:
+    // Callback from P2PNode when a message arrives
+    void HandleP2PMessage(const rxrevoltchain::network::ProtocolMessage& msg) {
+        if (msg.type == "POP_REQUEST") {
+            // Placeholder: in a real node we'd generate proof and reply
+        } else if (msg.type == "POP_RESPONSE") {
+            // Validate responses here
+        }
+    }
+
     // Internal routine representing the node's event loop
     void eventLoopRoutine() {
         // Runs until m_isNodeRunning is false
@@ -137,6 +180,7 @@ class PinnerNode {
     rxrevoltchain::core::DocumentQueue m_docQueue;
     DailyScheduler m_scheduler;
     rxrevoltchain::config::NodeConfig m_config;
+    rxrevoltchain::network::P2PNode m_p2pNode;
 };
 
 } // namespace pinner
