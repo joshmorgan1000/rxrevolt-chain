@@ -1,12 +1,5 @@
 #TODO
 
-
-4. **Finalize Proof‑of‑Pinning logic**
-   - Generate Merkle based proofs with `MerkleProof` and validate them in `PoPConsensus`.
-   - Track challenge history and store passing nodes for reward calculation.
-
-
-
 7. **Governance modules**
    - Hook up `ContentModeration` and `UpgradeManager` through a `ServiceManager` or RPC interface.
    - Allow proposals, voting and upgrade activation according to the whitepaper rules.
