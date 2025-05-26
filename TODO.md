@@ -45,7 +45,3 @@
     - Expand GoogleTest coverage for each module (IPFSPinner, P2P networking, PoP flows, etc.).
     - Provide integration tests that simulate multiple nodes and reward distribution.
 
-12. **Documentation and tooling**
-    - Extend `README.md` with full build, run and configuration instructions.
-    - Provide scripts for setting up IPFS and running a local network of nodes.
-
