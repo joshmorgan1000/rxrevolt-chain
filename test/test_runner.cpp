@@ -67,7 +67,10 @@ TEST(TransactionTest, BasicUsage) {
 
 // Basic test: DocumentQueue
 TEST(DocumentQueueTest, AddAndFetch) {
-    rxrevoltchain::core::DocumentQueue queue;
+    const std::string file = "test_queue.wal";
+    std::remove(file.c_str());
+
+    rxrevoltchain::core::DocumentQueue queue(file);
     EXPECT_TRUE(queue.IsEmpty());
 
     auto tx = makeTransaction("document_submission", "test meta", {0x10, 0x11});
@@ -80,6 +83,33 @@ TEST(DocumentQueueTest, AddAndFetch) {
     EXPECT_EQ(all[0].GetType(), "document_submission");
     EXPECT_EQ(all[0].GetMetadata(), "test meta");
     EXPECT_EQ(all[0].GetPayload().size(), (size_t)2);
+
+    // ensure persistence cleared
+    rxrevoltchain::core::DocumentQueue reload(file);
+    EXPECT_TRUE(reload.IsEmpty());
+    std::remove(file.c_str());
+}
+
+TEST(DocumentQueueTest, PersistReload) {
+    const std::string file = "test_queue2.wal";
+    std::remove(file.c_str());
+
+    {
+        rxrevoltchain::core::DocumentQueue q(file);
+        auto tx = makeTransaction("document_submission", "meta", {0x01});
+        ASSERT_TRUE(q.AddTransaction(tx));
+    }
+
+    rxrevoltchain::core::DocumentQueue q2(file);
+    EXPECT_FALSE(q2.IsEmpty());
+    auto all = q2.FetchAll();
+    ASSERT_EQ(all.size(), (size_t)1);
+    EXPECT_EQ(all[0].GetMetadata(), "meta");
+    EXPECT_TRUE(q2.IsEmpty());
+
+    rxrevoltchain::core::DocumentQueue q3(file);
+    EXPECT_TRUE(q3.IsEmpty());
+    std::remove(file.c_str());
 }
 
 // A test fixture that sets up multiple MockP2PNode objects to simulate a network

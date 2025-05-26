@@ -1,11 +1,6 @@
 # TODO
 
 
-2. **Complete daily merge pipeline**
-   - Persist `DocumentQueue` to disk (virtual WAL) so data survives restarts.
-   - Compress document payloads before insertion into SQLite.
-   - Ensure `DailySnapshot` updates `PinnedState` with the CID returned from `IPFSPinner`.
-
 3. **Connect P2P networking**
    - Start a `P2PNode` inside `PinnerNode` and implement peer discovery.
    - Broadcast snapshot announcements and handle PoP request/response messages.
