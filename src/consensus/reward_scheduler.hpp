@@ -8,6 +8,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace rxrevoltchain {
@@ -73,7 +74,7 @@ class RewardScheduler {
             "[RewardScheduler] Base daily reward set to: " + std::to_string(amount));
     }
 
-    // Tells the scheduler which nodes passed PoP
+    // Tells the scheduler which nodes passed PoP and penalizes those that did not.
     void RecordPassingNodes(const std::vector<std::string>& nodeIDs) {
         std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -81,6 +82,9 @@ class RewardScheduler {
         // In a real system, you might track time-based issuance, but for simplicity
         // we just accumulate it every time new passing nodes are recorded.
         m_currentRewardPool += m_baseDailyReward;
+
+        // Track nodes that passed in this round for later comparison
+        std::unordered_set<std::string> passing(nodeIDs.begin(), nodeIDs.end());
 
         // Increment or maintain "streak" for these nodes
         for (const auto& node : nodeIDs) {
@@ -92,8 +96,12 @@ class RewardScheduler {
             }
         }
 
-        // Optionally, you could also detect nodes that failed and reset their streak.
-        // For demonstration, we only update the nodes that passed.
+        // Penalize nodes that previously had a streak but failed this round
+        for (auto& pair : m_nodeStreaks) {
+            if (passing.count(pair.first) == 0 && pair.second > 0) {
+                pair.second -= 1; // simple penalty
+            }
+        }
         rxrevoltchain::util::logger::Logger::getInstance().info(
             "[RewardScheduler] Recorded " + std::to_string(nodeIDs.size()) +
             " passing nodes. Current reward pool: " + std::to_string(m_currentRewardPool));
@@ -159,6 +167,13 @@ class RewardScheduler {
     uint64_t GetCurrentRewardPool() const {
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_currentRewardPool;
+    }
+
+    /** Get the current streak count for a node. */
+    uint64_t GetNodeStreak(const std::string& nodeID) const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        auto it = m_nodeStreaks.find(nodeID);
+        return it == m_nodeStreaks.end() ? 0 : it->second;
     }
 
     /** Get the current token balance for a node address. */

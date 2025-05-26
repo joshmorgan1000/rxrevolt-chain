@@ -58,13 +58,19 @@ class PoPConsensus {
         std::vector<std::string> passingNodes;
         std::chrono::system_clock::time_point timestamp;
     };
-    // Default constructor
-    PoPConsensus() {}
+    // Default constructor seeds RNG for additional randomness
+    PoPConsensus() : m_useEncryption(false) {
+        std::random_device rd;
+        m_rng.seed(rd());
+    }
 
     // Creates random chunk requests for the pinned DB identified by cid.
     // Offsets are used to build a Merkle proof challenge based on filePath.
-    void IssueChallenges(const std::string& cid, const std::string& filePath) {
+    void IssueChallenges(const std::string& cid, const std::string& filePath,
+                         bool useEncryption = false) {
         std::lock_guard<std::mutex> lock(m_mutex);
+
+        m_useEncryption = useEncryption;
 
         // Log the new challenge issuance
         rxrevoltchain::util::logger::Logger::getInstance().info(
@@ -81,9 +87,11 @@ class PoPConsensus {
             return;
         }
 
-        // Pick random offsets
+        // Pick random offsets with variable count for added unpredictability
         rxrevoltchain::pinner::ProofGenerator generator;
-        m_offsets = generator.GenerateRandomOffsets(fileSize, 3);
+        std::uniform_int_distribution<size_t> countDist(3, 6);
+        size_t count = countDist(m_rng);
+        m_offsets = generator.GenerateRandomOffsets(fileSize, count);
 
         // Generate local proof to obtain the root for comparison
         rxrevoltchain::ipfs_integration::MerkleProof mp;
@@ -94,6 +102,12 @@ class PoPConsensus {
             return;
         }
         m_currentChallengeRoot = extractRootFromProof(proof);
+
+        // Optionally encrypt the challenge proof to explore zero-knowledge style flows
+        if (m_useEncryption) {
+            generateEncryptionKey();
+            xorBufferWithKey(proof);
+        }
 
         // Clear any old data
         m_challengeNodeResponses.clear();
@@ -137,7 +151,10 @@ class PoPConsensus {
         // Evaluate each node's response
         for (const auto& pair : m_challengeNodeResponses) {
             const std::string& nodeID = pair.first;
-            const std::vector<uint8_t>& response = pair.second;
+            std::vector<uint8_t> response = pair.second;
+            if (m_useEncryption) {
+                xorBufferWithKey(response);
+            }
             rxrevoltchain::ipfs_integration::MerkleProof mp;
             if (!mp.VerifyProof(response)) {
                 continue;
@@ -263,6 +280,24 @@ class PoPConsensus {
     // History of past challenges
     std::vector<ChallengeRecord> m_history;
     size_t m_historyLimit = 50;
+
+    bool m_useEncryption;
+    std::vector<uint8_t> m_encKey;
+    std::mt19937_64 m_rng;
+
+    void generateEncryptionKey() {
+        std::uniform_int_distribution<int> byteDist(0, 255);
+        m_encKey.resize(16);
+        for (auto& b : m_encKey)
+            b = static_cast<uint8_t>(byteDist(m_rng));
+    }
+
+    void xorBufferWithKey(std::vector<uint8_t>& buf) const {
+        if (m_encKey.empty())
+            return;
+        for (size_t i = 0; i < buf.size(); ++i)
+            buf[i] ^= m_encKey[i % m_encKey.size()];
+    }
 };
 
 } // namespace consensus
