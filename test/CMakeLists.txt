@@ -64,6 +64,7 @@ include_directories(
     ${CMAKE_CURRENT_LIST_DIR}/../src/consensus
     ${CMAKE_CURRENT_LIST_DIR}/../src/core
     ${CMAKE_CURRENT_LIST_DIR}/../src/network
+    ${CMAKE_CURRENT_LIST_DIR}/../src/connectors
     ${CMAKE_CURRENT_LIST_DIR}/../src/ipfs_integration
     ${CMAKE_CURRENT_LIST_DIR}/../src/pinner
     ${CMAKE_CURRENT_LIST_DIR}/../src/util

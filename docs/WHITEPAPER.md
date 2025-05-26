@@ -1,4 +1,4 @@
-# RxRevoltChain Whitepaper
+#RxRevoltChain Whitepaper
 
 **Version:** 1.0  
 **Date:** December, 2024
@@ -295,9 +295,15 @@ Healthcare cost transparency is a **global concern**—patients often struggle t
 1. **External API Connectors**
    - Tools or modules to interface with EHR (Electronic Health Record) systems so they can auto-submit cost data,
    - Possibly integrate with insurance providers for direct feed of claims data.
+   - Connectors should speak common standards like FHIR or HL7 and include
+     credential management, batching and retry logic so uploads can happen
+     automatically with minimal user intervention.
 
 2. **Sharding / Partitioning** (If the main DB grows huge)
    - Potentially split the pinned data into multiple region-based or category-based `.sqlite` files, if necessary.
+   - Each partition can be pinned separately to IPFS and referenced from a master
+     index. This keeps individual snapshot sizes manageable while still allowing
+     lookups across partitions when required.
 
 #### 6.2 Maintenance & Upgrades
 
@@ -496,4 +502,4 @@ Launches the pinner node:
 
 1. [IPFS Documentation](https://docs.ipfs.tech/)  
 2. [SQLite Official Documentation](https://www.sqlite.org/docs.html)  
-3. [Filecoin & IPFS Relationship](https://filecoin.io) (for conceptual parallels, though RxRevoltChain differs in approach)  
+3. [Filecoin & IPFS Relationship](https://filecoin.io) (for conceptual parallels, though RxRevoltChain differs in approach)
