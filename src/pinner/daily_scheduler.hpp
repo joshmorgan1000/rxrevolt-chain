@@ -203,6 +203,9 @@ class DailyScheduler {
         logger.info("[DailyScheduler] Issuing PoP challenges for CID: " + cidForPoP);
         g_consensus.IssueChallenges(cidForPoP);
 
+        // Ensure reward scheduler uses persistent storage
+        g_rewardScheduler.SetStorageFile(m_dataDirectory + "/rewards.dat");
+
         // ... in a real system, nodes respond over P2P. We'll simulate a local check:
         // e.g. g_consensus.CollectResponse("Node123", someData);
 

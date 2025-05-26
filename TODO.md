@@ -9,9 +9,6 @@
    - Generate Merkle based proofs with `MerkleProof` and validate them in `PoPConsensus`.
    - Track challenge history and store passing nodes for reward calculation.
 
-5. **Implement reward distribution storage**
-   - Persist node streaks and minted tokens so rewards survive restarts.
-   - Expose simple wallet/address handling for nodes.
 
 6. **Add privacy and removal features**
    - Integrate `PrivacyManager` into `DailySnapshot` for automatic PII stripping.
